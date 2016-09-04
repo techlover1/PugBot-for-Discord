@@ -1,0 +1,14 @@
+# The login token for your bot account
+token = 'YOUR TOKEN HERE'
+
+# The user ids that have permission to reset the queue
+admins = ['95847346260164608','anotherone']
+
+# The character that must precede each command
+cmdprefix = '!'
+
+# The size of each team
+teamsize = 5
+
+# The size of the pug
+pugsize = teamsize * 2
