@@ -35,7 +35,7 @@ async def on_message(msg):
 
     # About
     if (msg.content.startswith("!about")):
-        await client.send_message(msg.channel, "PugBot version (alpha 0.0.0 dev2) Written by NightFury\nhttp://github.com/techlover1\nType !help for commands")
+        await client.send_message(msg.channel, "PugBot version (alpha 0.0.0 dev3) Written by NightFury\nhttps://github.com/techlover1/PugBot-for-Discord\nType !help for commands")
 
     # Help
     if (msg.content.startswith("!help")):
@@ -45,15 +45,17 @@ async def on_message(msg):
     if (msg.content.startswith("!add")):
         if (msg.author in entered):
             await client.send_message(msg.channel, "You are already in the queue")
-        # elif (len(entered) == (pugsize - 1)):
-        elif (len(entered) == pugsize - 1):
+        elif (len(entered) == (pugsize - 1)):
+        #elif (len(entered) == 2):
             entered.append(msg.author)
 
             # start the pug
             shuffle(entered)
             captains = [entered[0], entered[1]]
-            team1 = [captains[0].mention]
-            team2 = [captains[1].mention]
+            team1 = [captains[0]]
+            team2 = [captains[1]]
+            entered.remove(team1[0])
+            entered.remove(team2[0])
 
             startingMsg = "PUG Starting!\nCaptains are " + captains[0].mention + " and " + captains[1].mention + \
                 "\n" + captains[0].mention + " will have first pick"
@@ -67,19 +69,19 @@ async def on_message(msg):
                     await client.send_message(msg.channel, captains[0].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
 
                     inputobj = await client.wait_for_message(author=msg.server.get_member(captains[0].id))
-                    team1add = inputobj.content
+                    team1add = inputobj.mentions[0]
 
                     if(team1add in entered and team1add not in team1 and team1add not in team2):
                         team1.append(team1add)
                         entered.remove(team1add)
-                        await client.send_message(msg.channel, team1add + " Added to your team")
+                        await client.send_message(msg.channel, team1add.mention + " Added to your team")
 
                     elif(team1add in entered and team1add in team1 or team1add in team2):
-                        await client.send_message(msg.channel, team1add + " Is already on a team")
+                        await client.send_message(msg.channel, team1add.mention + " Is already on a team")
                         await team1func(msg)
 
                     elif(team1add not in entered):
-                        await client.send_message(msg.channel, team1add + " Is not in the queue")
+                        await client.send_message(msg.channel, team1add.mention + " Is not in the queue")
                         await team1func(msg)
 
                     else:
@@ -88,22 +90,22 @@ async def on_message(msg):
 
                 async def team2func(msg):
                     inputobj = 0
-                    await client.send_message(msg.channel, captains[1].mention + " Type @player to pick")
+                    await client.send_message(msg.channel, captains[1].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
 
                     inputobj = await client.wait_for_message(author=msg.server.get_member(captains[1].id))
-                    team2add = inputobj.content
+                    team2add = inputobj.mentions[0]
 
                     if(team2add in entered and team2add not in team1 and team2add not in team2):
                         team2.append(team2add)
                         entered.remove(team2add)
-                        await client.send_message(msg.channel, team2add + " Added to your team")
+                        await client.send_message(msg.channel, team2add.mention + " Added to your team")
 
                     elif(team2add in entered and team2add in team1 or team2add in team2):
-                        await client.send_message(msg.channel, team2add + " Is already on a team")
+                        await client.send_message(msg.channel, team2add.mention + " Is already on a team")
                         await team2func(msg)
 
                     elif(team2add not in entered):
-                        await client.send_message(msg.channel, team2add + " Is not in the queue")
+                        await client.send_message(msg.channel, team2add.mention + " Is not in the queue")
                         await team2func(msg)
 
                     else:
