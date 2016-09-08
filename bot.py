@@ -128,8 +128,8 @@ async def on_message(msg):
 
     # Remove
     if (msg.content.startswith("!remove")):
-        if(msg.author.mention in entered):
-            entered.remove(msg.author.mention)
+        if(msg.author in entered):
+            entered.remove(msg.author)
             await client.send_message(msg.channel, "Successfuly left the queue. " + str(len(entered)) + " Currently in queue")
         else:
             await client.send_message(msg.channel, "You are not in the queue")
