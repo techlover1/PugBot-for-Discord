@@ -114,11 +114,21 @@ async def on_message(msg):
                 await team1func(msg)
                 await team2func(msg)
 
-            await client.send_message(msg.channel, "Team 1 is: " + str(team1) + "\nTeam2 is: " + str(team2) + "\n GLHF!")
+            team1mention = []
+            team2mention = []
+            for i in team1:
+                team1mention.append(i.mention)
+            for i in team2:
+                team2mention.append(i.mention)
+
+            await client.send_message(msg.channel, "Team 1 is: " + "\n".join(map(str, team1mention)) + "\nTeam2 is: " + "\n".join(map(str, team2mention)) + "\n GLHF!")
+
             entered = []
             captains = []
             team1 = []
             team2 = []
+            team1mention = []
+            team2mention = []
 
         else:
             entered.append(msg.author)
