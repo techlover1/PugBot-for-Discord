@@ -115,6 +115,10 @@ async def on_message(msg):
                 await team2func(msg)
 
             await client.send_message(msg.channel, "Team 1 is: " + str(team1) + "\nTeam2 is: " + str(team2) + "\n GLHF!")
+            entered = []
+            captains = []
+            team1 = []
+            team2 = []
 
         else:
             entered.append(msg.author)
