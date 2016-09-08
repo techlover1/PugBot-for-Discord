@@ -1,6 +1,5 @@
 # Import important stuff
 import discord
-import asyncio
 import config
 from random import shuffle
 
@@ -66,7 +65,7 @@ async def on_message(msg):
 
                 async def team1func(msg):
                     inputobj = 0
-                    await client.send_message(msg.channel, captains[0].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
+                    await client.send_message(msg.channel,captains[0].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
 
                     inputobj = await client.wait_for_message(author=msg.server.get_member(captains[0].id))
                     team1add = inputobj.mentions[0]
