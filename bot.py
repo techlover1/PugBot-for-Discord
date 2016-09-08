@@ -11,6 +11,7 @@ entered = []
 captains = []
 team1 = []
 team2 = []
+picking = False
 
 # Set the things from the config file
 admins = config.admins
@@ -42,13 +43,17 @@ async def on_message(msg):
 
     # Add
     if (msg.content.startswith("!add")):
-        if (msg.author in entered):
+        if (picking = True):
+            await client.send_message(msg.channel, "You cannot use this command in the picking phase")
+        elif (msg.author in entered):
             await client.send_message(msg.channel, "You are already in the queue")
         elif (len(entered) == (pugsize - 1)):
         #elif (len(entered) == 2):
             entered.append(msg.author)
 
             # start the pug
+            picking = True
+
             shuffle(entered)
             captains = [entered[0], entered[1]]
             team1 = [captains[0]]
@@ -129,6 +134,7 @@ async def on_message(msg):
             team2 = []
             team1mention = []
             team2mention = []
+            picking = False
 
         else:
             entered.append(msg.author)
@@ -142,7 +148,9 @@ async def on_message(msg):
 
     # Remove
     if (msg.content.startswith("!remove")):
-        if(msg.author in entered):
+        if(picking = True):
+            await client.send_message(msg.channel, "You cannot use this command in the picking phase")
+        elif(msg.author in entered):
             entered.remove(msg.author)
             await client.send_message(msg.channel, "Successfuly left the queue. " + str(len(entered)) + " Currently in queue")
         else:
