@@ -72,8 +72,13 @@ async def on_message(msg):
                     inputobj = 0
                     await client.send_message(msg.channel,captains[0].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
 
-                    inputobj = await client.wait_for_message(author=msg.server.get_member(captains[0].id))
-                    team1add = inputobj.mentions[0]
+                    while True:
+                        try:
+                            inputobj = await client.wait_for_message(author=msg.server.get_member(captains[0].id))
+                            team1add = inputobj.mentions[0]
+                        except(IndexError):
+                            continue
+                        break
 
                     if(team1add in entered and team1add not in team1 and team1add not in team2):
                         team1.append(team1add)
@@ -96,8 +101,13 @@ async def on_message(msg):
                     inputobj = 0
                     await client.send_message(msg.channel, captains[1].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
 
-                    inputobj = await client.wait_for_message(author=msg.server.get_member(captains[1].id))
-                    team2add = inputobj.mentions[0]
+                    while True:
+                        try:
+                            inputobj = await client.wait_for_message(author=msg.server.get_member(captains[1].id))
+                            team2add = inputobj.mentions[0]
+                        except(IndexError):
+                            continue
+                        break
 
                     if(team2add in entered and team2add not in team1 and team2add not in team2):
                         team2.append(team2add)
