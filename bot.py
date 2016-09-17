@@ -24,6 +24,11 @@ pugsize = config.pugsize
 
 @client.event
 async def on_message(msg):
+    global picking
+    global entered
+    global captains
+    global team1
+    global team2
 
     # Don't reply to self
     if msg.author == client.user:
@@ -40,29 +45,29 @@ async def on_message(msg):
     # Help
     if (msg.content.startswith("!help")):
         await client.send_message(msg.channel, "```Available Commands:\nabout - Print information about the bot\nadd - Join the queue\n"
-            + "help - Print this screen\nping - Test bot functionality\nqueue - Print players currently in the queue\nremove - Leave the queue```")
+                                  + "help - Print this screen\nping - Test bot functionality\nqueue - Print players currently in the queue\nremove - Leave the queue```")
 
     # Add
-    if (msg.content.startswith("!add")): 
-        if (picking == True):
+    if (msg.content.startswith("!add")):
+        if (picking):
             await client.send_message(msg.channel, "You cannot use this command in the picking phase")
         elif (msg.author in entered):
             await client.send_message(msg.channel, "You are already in the queue")
         elif (len(entered) == (pugsize - 1)):
-        # elif (len(entered) == 2):
+            # elif (len(entered) == 2):
             entered.append(msg.author)
 
             # start the pug
-            picking=True
+            picking = True
 
             shuffle(entered)
-            captains=[entered[0], entered[1]]
-            team1=[captains[0]]
-            team2=[captains[1]]
+            captains = [entered[0], entered[1]]
+            team1 = [captains[0]]
+            team2 = [captains[1]]
             entered.remove(team1[0])
             entered.remove(team2[0])
 
-            startingMsg="PUG Starting!\nCaptains are " + captains[0].mention + " and " + captains[1].mention + \
+            startingMsg = "PUG Starting!\nCaptains are " + captains[0].mention + " and " + captains[1].mention + \
                 "\n" + captains[0].mention + " will have first pick"
             await client.send_message(msg.channel, startingMsg)
 
@@ -70,13 +75,13 @@ async def on_message(msg):
             while(len(team1) < teamsize and len(team2) < teamsize):
 
                 async def team1func(msg):
-                    inputobj=0
+                    inputobj = 0
                     await client.send_message(msg.channel, captains[0].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
 
                     while True:
                         try:
-                            inputobj=await client.wait_for_message(author=msg.server.get_member(captains[0].id))
-                            team1add=inputobj.mentions[0]
+                            inputobj = await client.wait_for_message(author=msg.server.get_member(captains[0].id))
+                            team1add = inputobj.mentions[0]
                         except(IndexError):
                             continue
                         break
@@ -99,13 +104,13 @@ async def on_message(msg):
                         await team1func(msg)
 
                 async def team2func(msg):
-                    inputobj=0
+                    inputobj = 0
                     await client.send_message(msg.channel, captains[1].mention + " Type @player to pick. Available players are:\n" + ("\n".join(map(str, entered))))
 
                     while True:
                         try:
-                            inputobj=await client.wait_for_message(author=msg.server.get_member(captains[1].id))
-                            team2add=inputobj.mentions[0]
+                            inputobj = await client.wait_for_message(author=msg.server.get_member(captains[1].id))
+                            team2add = inputobj.mentions[0]
                         except(IndexError):
                             continue
                         break
@@ -130,8 +135,8 @@ async def on_message(msg):
                 await team1func(msg)
                 await team2func(msg)
 
-            team1mention=[]
-            team2mention=[]
+            team1mention = []
+            team2mention = []
             for i in team1:
                 team1mention.append(i.mention)
             for i in team2:
@@ -139,13 +144,13 @@ async def on_message(msg):
 
             await client.send_message(msg.channel, "Team 1 is: " + "\n".join(map(str, team1mention)) + "\nTeam2 is: " + "\n".join(map(str, team2mention)) + "\n GLHF!")
 
-            entered=[]
-            captains=[]
-            team1=[]
-            team2=[]
-            team1mention=[]
-            team2mention=[]
-            picking=False
+            entered = []
+            captains = []
+            team1 = []
+            team2 = []
+            team1mention = []
+            team2mention = []
+            picking = False
 
         else:
             entered.append(msg.author)
@@ -159,7 +164,7 @@ async def on_message(msg):
 
     # Remove
     if (msg.content.startswith("!remove")):
-        if(picking == True):
+        if(picking is True):
             await client.send_message(msg.channel, "You cannot use this command in the picking phase")
         elif(msg.author in entered):
             entered.remove(msg.author)
@@ -171,6 +176,7 @@ async def on_message(msg):
     if (msg.content.startswith("!reset")):
         if (msg.author.id in config.admins):
             del entered[:]
+            picking = False
             await client.send_message(msg.channel, "Queue reset")
         else:
             await client.send_message(msg.channel, "You do not have access to this command")
