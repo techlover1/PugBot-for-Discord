@@ -35,20 +35,20 @@ async def on_message(msg):
         return
 
     # Ping
-    if (msg.content.startswith("!ping")):
+    if (msg.content.startswith(cmdprefix + "ping")):
         await client.send_message(msg.channel, "pong!")
 
     # About
-    if (msg.content.startswith("!about")):
+    if (msg.content.startswith(cmdprefix + "about")):
         await client.send_message(msg.channel, "PugBot version (alpha 0.0.0 dev4) Written by NightFury\nhttps://github.com/techlover1/PugBot-for-Discord\nType !help for commands")
 
     # Help
-    if (msg.content.startswith("!help")):
+    if (msg.content.startswith(cmdprefix + "help")):
         await client.send_message(msg.channel, "```Available Commands:\nabout - Print information about the bot\nadd - Join the queue\n"
                                   + "help - Print this screen\nping - Test bot functionality\nqueue - Print players currently in the queue\nremove - Leave the queue```")
 
     # Add
-    if (msg.content.startswith("!add")):
+    if (msg.content.startswith(cmdprefix + "add")):
         if (picking):
             await client.send_message(msg.channel, "You cannot use this command in the picking phase")
         elif (msg.author in entered):
@@ -157,13 +157,13 @@ async def on_message(msg):
             await client.send_message(msg.channel, msg.author.mention + " Successfuly entered into the queue. " + str(len(entered)) + " Players in queue")
 
     # Queue
-    if (msg.content.startswith("!queue") and len(entered) < 1):
+    if (msg.content.startswith(cmdprefix + "queue") and len(entered) < 1):
         await client.send_message(msg.channel, "The queue is currently empty")
-    if (msg.content.startswith("!queue") and len(entered) > 0):
+    if (msg.content.startswith(cmdprefix + "queue") and len(entered) > 0):
         await client.send_message(msg.channel, "Players in queue: " + str(len(entered)))
 
     # Remove
-    if (msg.content.startswith("!remove")):
+    if (msg.content.startswith(cmdprefix + "remove")):
         if(picking is True):
             await client.send_message(msg.channel, "You cannot use this command in the picking phase")
         elif(msg.author in entered):
@@ -173,7 +173,7 @@ async def on_message(msg):
             await client.send_message(msg.channel, "You are not in the queue")
 
     # Reset
-    if (msg.content.startswith("!reset")):
+    if (msg.content.startswith(cmdprefix + "reset")):
         if (msg.author.id in config.admins):
             del entered[:]
             picking = False
