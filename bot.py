@@ -13,11 +13,13 @@ teamsize = config.teamsize
 pugsize = config.pugsize
 
 picking = False
+entered = []
 
 # When the bot recieves a message
 @client.event
 async def on_message(msg):
     global picking
+    global entered
 
     # Don't reply to self
     if msg.author == client.user:
@@ -166,7 +168,7 @@ async def on_message(msg):
     if (msg.content.startswith(cmdprefix + "queue") and len(entered) < 1):
         await client.send_message(msg.channel, "The queue is currently empty")
     if (msg.content.startswith(cmdprefix + "queue") and len(entered) > 0):
-        await client.send_message(msg.channel, "Players in queue: " + str(len(entered)))
+        await client.send_message(msg.channel, "Players in queue:\n" + "\n".join(map(str, entered)))
 
     # Remove
     if (msg.content.startswith(cmdprefix + "remove")):
