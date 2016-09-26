@@ -43,11 +43,11 @@ async def on_message(msg):
 
         # If in the picking phase, don't allow !add
         if (picking):
-            await client.send_message(msg.channel, "You cannot use this command in the picking phase")
+            await client.send_message(msg.channel, msg.author.mention + " You cannot use this command in the picking phase")
 
         # If the user is already in the queue, tell them
         elif (msg.author in entered):
-            await client.send_message(msg.channel, "You are already in the queue")
+            await client.send_message(msg.channel, msg.author.mention + " You are already in the queue")
 
         # If the pug is full lets get this party started
         elif (len(entered) == (pugsize - 1)):
@@ -162,7 +162,7 @@ async def on_message(msg):
         # Add player to queue if the queue isn't full
         else:
             entered.append(msg.author)
-            await client.send_message(msg.channel, msg.author.mention + " Successfuly entered into the queue. " + str(len(entered)) + " Players in queue")
+            await client.send_message(msg.channel, msg.author.mention + " You successfuly entered into the queue. " + str(len(entered)) + " Players in queue")
 
     # Queue
     if (msg.content.startswith(cmdprefix + "queue") and len(entered) < 1):
@@ -173,12 +173,12 @@ async def on_message(msg):
     # Remove
     if (msg.content.startswith(cmdprefix + "remove")):
         if(picking is True):
-            await client.send_message(msg.channel, "You cannot use this command in the picking phase")
+            await client.send_message(msg.channel, msg.author.mention + " You cannot use this command in the picking phase")
         elif(msg.author in entered):
             entered.remove(msg.author)
-            await client.send_message(msg.channel, "Successfuly left the queue. " + str(len(entered)) + " Currently in queue")
+            await client.send_message(msg.channel, msg.author.mention + " You successfuly left the queue. " + str(len(entered)) + " Currently in queue")
         else:
-            await client.send_message(msg.channel, "You are not in the queue")
+            await client.send_message(msg.channel, msg.author.mention + " You are not in the queue")
 
     # Reset
     if (msg.content.startswith(cmdprefix + "reset")):
@@ -187,7 +187,7 @@ async def on_message(msg):
             picking = False
             await client.send_message(msg.channel, "Queue reset")
         else:
-            await client.send_message(msg.channel, "You do not have access to this command")
+            await client.send_message(msg.channel, msg.author.mention + " You do not have access to this command")
 
     # Easter egg 1
     if ("Kappa" in msg.content):
