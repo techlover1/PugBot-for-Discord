@@ -31,7 +31,7 @@ async def on_message(msg):
 
     # About
     if (msg.content.startswith(cmdprefix + "about")):
-        await client.send_message(msg.channel, "PugBot version (alpha 0.0.0 dev4) Written by NightFury\nhttps://github.com/techlover1/PugBot-for-Discord\nType !help for commands")
+        await client.send_message(msg.channel, "PugBot version (beta 0.1.0) Written by NightFury\nhttps://github.com/techlover1/PugBot-for-Discord\nType !help for commands")
 
     # Help
     if (msg.content.startswith(cmdprefix + "help")):
