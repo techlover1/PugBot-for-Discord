@@ -1,6 +1,6 @@
 # PugBot for Discord
 
-PugBot for discord is a bot for managing pickup games.
+PugBot for discord is a bot for managing pickup games. This version has been updated and modified for use with [Fortress Forever](http://www.fortress-forever.com/) on steam.
 
 ## Installing
 
@@ -12,3 +12,4 @@ PugBot for discord is a bot for managing pickup games.
 
 - Python 3.5+
 - [discord.py](https://github.com/Rapptz/discord.py)
+- [valve.py](https://github.com/serverstf/python-valve)
