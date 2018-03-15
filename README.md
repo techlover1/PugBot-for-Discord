@@ -6,7 +6,7 @@ PugBot for discord is a bot for managing pickup games.
 
 - Rename `config.py.example` to `config.py`
 - Edit config.py to your liking
-- Run the bot with `python3 ./bot.py` on linux or `python bot.py` on windows
+- Run the bot with `python3 ./pugbot.py` on linux or `python pugbot.py` on windows
 
 ## Requirements
 
