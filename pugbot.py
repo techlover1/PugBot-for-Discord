@@ -358,6 +358,8 @@ async def on_message(msg):
 		emb.set_author(name=client.user.name, icon_url=client.user.default_avatar_url)
 		emb.add_field(name=cmdprefix + 'add', value='Adds yourself to the current pickup', inline=False)
 		emb.add_field(name=cmdprefix + 'commands', value='Prints this command menu', inline=False)
+		emb.add_field(name=cmdprefix + 'hawking', value='Displays a random quote from the late Dr. S. W. Hawking', inline=False)
+		emb.add_field(name=cmdprefix + 'journals', value='Displays a link to 55 papers written by Dr. Hawking in a peer-reviewed journal', inline=False)
 		emb.add_field(name=cmdprefix + 'demos', value='Provides you with a link to the currently stored demos', inline=False)
 		emb.add_field(name=cmdprefix + 'last', value='Displays information about the last pickup that was played', inline=False)
 		emb.add_field(name=cmdprefix + 'maps', value='Show the nominated maps for the current pickup', inline=False)
@@ -406,7 +408,15 @@ async def on_message(msg):
 		emb.set_author(name="Dr. Stephen William Hawking, 1942-2018", icon_url=client.user.avatar_url)
 		emb.add_field(name='Source:', value=source, inline=False)
 		await client.send_message(msg.channel, embed=emb )
-			
+		
+	# Journals - 	Displays a link to 55 papers in Physical Review D and Physical Review Letters
+	#				Gathered together and made public by the American Physical Society 
+	if(msg.content.startswith(cmdprefix +  "journals")):		
+		emb = (discord.Embed(description='''To mark the passing of Stephen Hawking, the American Physical Society have gathered together and made free to read his 55 papers in the peer-reviewed, scientific journals Physical Review D and Physical Review Letters.''', colour=0x5e7750))
+		emb.set_author(name="Dr. Stephen William Hawking, 1942-2018", icon_url=client.user.avatar_url)
+		emb.add_field(name='Link:', value='https://journals.aps.org/collections/stephen-hawking', inline=False)
+		await client.send_message(msg.channel, embed=emb)
+		
 	# Last - Displays information about the last pickup that was played
 	if(msg.content.startswith(cmdprefix + "last")):
 		elapsedtime = time.time() - lasttime
