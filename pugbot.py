@@ -93,7 +93,7 @@ async def user_has_access(author):
 async def someone_is_afk(players, maps, message):
 	# message the channel so the users know what is going on
 	await send_emb_message_to_channel(0x00ff00, "The pickup is full!! All players must verify they are still here. This will take no more than 10 minutes, but should just be a few. Lookout for my PM and reply ASAP!" , message)
-	await client.change_presence(game=discord.Game(name='Checking for AFK Players'))
+	await client.change_presence(game=discord.Game(name='Check for AFK Players'))
 	# for every player in the queue
 	for p in players:
 		# need to verify they are all still here before starting things
