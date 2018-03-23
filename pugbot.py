@@ -7,7 +7,7 @@
 from datetime import timedelta
 from random import shuffle
 from random import choice
-import config_test as config
+import config
 import discord
 import requests
 import time
