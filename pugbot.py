@@ -431,7 +431,7 @@ async def on_message(msg):
 		elapsedtime = time.time() - lasttime
 		lmstr = ""
 		for k in lastMap: lmstr = str(lastMap[k]) + " (" + k.mention + ")\n"
-		emb = (discord.Embed(title="Last Pickup: " + str(timedelta(seconds=elapsedtime)) + " on " + lmstr, colour=0x00ff00))
+		emb = (discord.Embed(title="Last Pickup was " + str(timedelta(seconds=elapsedtime)) + " ago on " + lmstr, colour=0x00ff00))
 		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb )
 		emb1 = (discord.Embed(title="Red Team:\n" + "\n".join(map(str, lastRedTeam)), colour=0xff0000))
@@ -486,7 +486,8 @@ async def on_message(msg):
 								emb.add_field(name='Current Maps', value=mapStr, inline=False)
 								await client.send_message(msg.channel, embed=emb )
 						else:
-							await send_emb_message_to_channel(0xff0000, msg.author.mention + " that map is not in my list of maps or has already been nominated. Please make another selection", msg)
+							await send_emb_message_to_channel(0xff0000, msg.author.mention + " that map is not in my !maplist or has already been nominated. Please make another selection", msg)
+							await send_emb_message_to_user(0x00ff00, "Currently, you may nominate any of the following maps:\n" + "\n".join(map(str, maps)), msg)
 					else:
 						await send_emb_message_to_user(0xff0000, msg.author.mention + " you must provide a mapname. " + cmdprefix + "nominate <mapname>", msg)
 				else:
