@@ -214,7 +214,7 @@ async def on_message(msg):
 				# set up the initial teams
 				shuffle(caps)	# shuffle the captains so the first guy doesn't always pick first
 				if(randomteams):
-					for i in range(0,sizeOfTeams):
+					for i in range(0,int(sizeOfTeams)):
 						redTeam.append(players[i])
 						blueTeam.append(players[i+sizeOfTeams])
 				else:
