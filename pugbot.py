@@ -7,7 +7,7 @@
 from datetime import timedelta
 from random import shuffle
 from random import choice
-import config
+import config_test as config
 import discord
 import requests
 import time
@@ -42,10 +42,6 @@ server = client.get_server(id=discordServerID)
 mapPicks = {}
 players = []
 starter = []
-lastRedTeam = []
-lastBlueTeam = []
-lastMap = {}
-lasttime = time.time()
 pickupRunning = False
 randomteams = False	
 selectionMode = False
@@ -55,6 +51,21 @@ rcon = valve.rcon.RCON(server_address, rconPW)
 rcon.connect()
 rcon.authenticate()
 
+# get the old pickup information, if it exists
+try: 
+	with open('lastgameinfo') as infile:
+		lastRedTeam = infile.readline().split(",")
+		lastBlueTeam = infile.readline().split(",")
+		selector = infile.readline()
+		mappa = infile.readline()
+		lastMap.update({selector:mappa})
+		lasttime = float(infile.readline())
+except IOError as error:
+	lastRedTeam = []
+	lastBlueTeam = []
+	lastMap = {}
+	lasttime = time.time()
+	
 # Send a rich embeded messages instead of a plain ones
 
 ## channel ##
@@ -341,11 +352,23 @@ async def on_message(msg):
 						continue
 					break
 					
-				# Save all the information for last
-				lastRedTeam = redTeamMention
-				lastBlueTeam = blueTeamMention				
+				# Save all the information for !last
+				lastRedTeam = []
+				lastBlueTeam = []
+				for p in redTeam:
+					lastRedTeam.append(p.name)
+				for p in blueTeam:
+					lastBlueTeam.append(p.name)
 				lasttime = time.time()
 				
+				# save this data to a file so we can access it later
+				with open('lastgameinfo', 'w') as outfile:
+					outfile.write(",".join(map(str, lastRedTeam)) + "\n")
+					outfile.write(",".join(map(str, lastBlueTeam)) + "\n")
+					outfile.write(str(selector.name) + "\n")
+					outfile.write(str(mappa) + "\n")
+					outfile.write(str(lasttime))
+					
 				# Reset so we can play another one
 				mapPicks = {}
 				captains = []				
@@ -436,7 +459,7 @@ async def on_message(msg):
 		td = td - timedelta(microseconds=td.microseconds)
 		# get the last map and the player who nominated it
 		lmstr = ""
-		for k in lastMap: lmstr = str(lastMap[k]) + " (" + k.mention + ")\n"
+		for k in lastMap: lmstr = str(lastMap[k]) + " (" + str(k) + ")\n"
 		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lmstr, colour=0x00ff00))
 		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb )
@@ -623,3 +646,4 @@ async def on_message(msg):
 	
 # Run the bot
 client.run(token)
+		
