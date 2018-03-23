@@ -42,6 +42,8 @@ htmlcov/
 # config.py file should NEVER be made public
 config.py
 config_test.py
+# lastgameinfo gets generated after the first pickup
+lastgameinfo
 .coverage
 .coverage.*
 .cache
