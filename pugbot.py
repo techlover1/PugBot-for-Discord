@@ -233,7 +233,7 @@ async def on_message(msg):
 				# set up the initial teams
 				shuffle(caps)	# shuffle the captains so the first guy doesn't always pick first
 				if(randomteams):
-					for i in range(0,int(sizeOfTeams)):
+					for i in range(0, sizeOfTeams):
 						redTeam.append(players[i])
 						blueTeam.append(players[i+sizeOfTeams])
 				else:
@@ -565,8 +565,8 @@ async def on_message(msg):
 										# do not lower sizes if more players have added already
 										await send_emb_message_to_channel(0xff0000, msg.author.mention + " the player pool is too big to change to that value", msg)
 									else:
-										sizeOfTeams = sz/2
-										sizeOfGame = sz
+										sizeOfTeams = int(sz/2)
+										sizeOfGame = int(sz)
 										await send_emb_message_to_channel(0x00ff00, msg.author.mention + " the size of the game has been changed to " + str(sz), msg)
 								else:
 									# odd number
