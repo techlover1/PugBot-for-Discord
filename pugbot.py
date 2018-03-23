@@ -69,13 +69,19 @@ async def send_emb_message_to_user(colour, embstr, message):
 	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 	await client.send_message(message.author, embed=emb )
 	
+# Cycle through a user's roles to determine if they have admin access
+# returns True if they do have access
 async def user_has_access(author):
 	for r in author.roles:
 		if (adminRoleID == r.id): return True
 	return False
 
+# Check to make sure all added players are still present
+# returns: 	True is someone is missing
+# 			False if all members confirm ready
 async def someone_is_afk(players, maps, message):
-	removed = False
+	# message the channel so the users know what is going on
+	await send_emb_message_to_channel(0x00ff00, "The pickup is full!! All players must verify they are still here. This will take no more than 10 minutes, but should just be a few. Lookout for my PM and reply ASAP!" , message)
 	# for every player in the queue
 	for p in players:
 		# need to verify they are all still here before starting things
@@ -90,8 +96,9 @@ async def someone_is_afk(players, maps, message):
 			players.remove(p)		# remove from players list
 			mapPicks.pop(p, None)		# remove this players nomination if they had one
 			await send_emb_message_to_channel(0xff0000, p.mention + " has been removed from the pickup due to inactivity." , message)
+			return True
 		await send_emb_message_to_channel(0x00ff00, p.mention + " has checked in." , message)
-	return removed
+	return False
 	
 # Every time we receive a message
 @client.event
