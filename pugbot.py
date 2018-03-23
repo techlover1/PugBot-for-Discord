@@ -428,10 +428,15 @@ async def on_message(msg):
 	if(msg.content.startswith(cmdprefix + "last")):
 		# we have to send these as multiple embed messages
 		# if we try to send more than 2000 characters discord raises a 400 request error
+		
+		# set up the timedelta
 		elapsedtime = time.time() - lasttime
+		td = timedelta(seconds=elapsedtime)
+		td = td - timedelta(microseconds=td.microseconds)
+		# get the last map and the player who nominated it
 		lmstr = ""
 		for k in lastMap: lmstr = str(lastMap[k]) + " (" + k.mention + ")\n"
-		emb = (discord.Embed(title="Last Pickup was " + str(timedelta(seconds=elapsedtime)) + " ago on " + lmstr, colour=0x00ff00))
+		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lmstr, colour=0x00ff00))
 		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb )
 		emb1 = (discord.Embed(title="Red Team:\n" + "\n".join(map(str, lastRedTeam)), colour=0xff0000))
