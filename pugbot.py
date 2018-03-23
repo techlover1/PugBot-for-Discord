@@ -426,15 +426,20 @@ async def on_message(msg):
 		
 	# Last - Displays information about the last pickup that was played
 	if(msg.content.startswith(cmdprefix + "last")):
+		# we have to send these as multiple embed messages
+		# if we try to send more than 2000 characters discord raises a 400 request error
 		elapsedtime = time.time() - lasttime
-		emb = (discord.Embed(title="Last Pickup: " + str(timedelta(seconds=elapsedtime)), colour=0x00ff00))
-		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-		emb.add_field(name='Red Team', value="\n".join(map(str, lastRedTeam)))		# Red Team information
-		emb.add_field(name='Blue Team', value="\n".join(map(str, lastBlueTeam)))		# Blue Team information	
 		lmstr = ""
-		for k in lastMap: lmstr = str(lastMap[k]) + " (" + k.mention + ")\n"		
-		emb.add_field(name='Map', value=lmstr)		# Display the map information
+		for k in lastMap: lmstr = str(lastMap[k]) + " (" + k.mention + ")\n"
+		emb = (discord.Embed(title="Last Pickup: " + str(timedelta(seconds=elapsedtime)) + " on " + lmstr, colour=0x00ff00))
+		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb )
+		emb1 = (discord.Embed(title="Red Team:\n" + "\n".join(map(str, lastRedTeam)), colour=0xff0000))
+		emb1.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+		await client.send_message(msg.channel, embed=emb1 )
+		emb2 = (discord.Embed(title="Blue Team:\n" + "\n".join(map(str, lastBlueTeam)), colour=0x0000ff))
+		emb2.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+		await client.send_message(msg.channel, embed=emb2 )
 				
 	# Maps or Nominated - Show the nominated maps for the current pickup
 	if (msg.content.startswith(cmdprefix + "maps") or msg.content.startswith(cmdprefix + "nominated")):
