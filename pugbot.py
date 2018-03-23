@@ -378,7 +378,7 @@ async def on_message(msg):
 		emb.add_field(name=cmdprefix + 'remove', value='Removes yourself from the pickup', inline=False)		
 		emb.add_field(name=cmdprefix + 'sendinfo', value='Sends you the server IP and password', inline=False)
 		emb.add_field(name=cmdprefix + 'teams', value='Displays current pickup info', inline=False)
-		await client.send_message(msg.channel, embed=emb)
+		await client.send_message(msg.author, embed=emb)
 		if (await user_has_access(msg.author)):
 			emb = (discord.Embed(title="Admin Commands:", description="These commands are accessible only by the game admins", colour=0x00AE86))
 			emb.set_author(name=client.user.name, icon_url=client.user.default_avatar_url)
