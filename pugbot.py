@@ -407,7 +407,7 @@ async def on_message(msg):
 		emb.add_field(name=cmdprefix + 'journals', value='Displays a link to 55 papers written by Dr. Hawking in a peer-reviewed journal', inline=False)
 		emb.add_field(name=cmdprefix + 'demos', value='Provides you with a link to the currently stored demos', inline=False)
 		emb.add_field(name=cmdprefix + 'last', value='Displays information about the last pickup that was played', inline=False)
-		emb.add_field(name=cmdprefix + 'map', value='Show the chose map for the current pickup', inline=False)
+		emb.add_field(name=cmdprefix + 'map', value='Show the chosen map for the current pickup', inline=False)
 		emb.add_field(name=cmdprefix + 'maps', value='Show the nominated maps for the current pickup', inline=False)
 		emb.add_field(name=cmdprefix + 'maplist', value='Provides you with a list of all the maps that are available for nomination', inline=False)
 		emb.add_field(name=cmdprefix + 'nominate', value='Nominate the specified map', inline=False)
