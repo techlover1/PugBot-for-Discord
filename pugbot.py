@@ -650,19 +650,19 @@ async def on_message(msg):
 		if(pickupRunning):
 			# admin command
 			if (await user_has_access(msg.author)):
-				await send_emb_message_to_channel(0x00ff00, msg.author.mention + " type @admin to transfer your pickup.", msg)
 				# check for a pick and catch it if they don't mention an available player
 				while True:
 					try:
-						inputobj = await client.wait_for_message(author=msg.server.get_member(starter[0].id))
-						newCap = inputobj.mentions[0]
+						newCap = msg.mentions[0]
 					except(IndexError):
-						continue
+						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you must type !transfer @nameOfAdmin to transfer your pickup.", msg)
+						newCap = msg.author
 					break
+				if(newCap == msg.author): return	# break out if they did not specify a user
 				if(await user_has_access(newCap)):
 					starter = []
 					starter.append(newCap)
-					await send_emb_message_to_channel(0x00ff00, msg.author.mention + " your pickup has successfully been transfered to " + inputobj.mentions[0].mention, msg)
+					await send_emb_message_to_channel(0x00ff00, msg.author.mention + " your pickup has successfully been transfered to " + msg.mentions[0].mention, msg)
 				else:
 					await send_emb_message_to_channel(0xff0000, msg.author.mention + " you can only transfer your pickup to another admin", msg)
 			else:
