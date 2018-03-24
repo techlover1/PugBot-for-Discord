@@ -39,9 +39,15 @@ client = discord.Client()
 server = client.get_server(id=discordServerID)
 
 # Globals 
+chosenMap = {}
+lastMap = {}
 mapPicks = {}
+lastRedTeam = []
+lastBlueTeam = []
+lasttime = time.time()
 players = []
 starter = []
+starttime = time.time()
 pickupRunning = False
 randomteams = False	
 selectionMode = False
@@ -115,6 +121,7 @@ async def someone_is_afk(players, maps, message):
 # Every time we receive a message
 @client.event
 async def on_message(msg):	
+	global chosenMap
 	global lastBlueTeam
 	global lastMap
 	global lastRedTeam
@@ -126,6 +133,7 @@ async def on_message(msg):
 	global sizeOfTeams
 	global selectionMode
 	global starter
+	global starttime
 	global randomteams
 	
 	# the bot handles authorizing access to the pickup channel
@@ -163,8 +171,12 @@ async def on_message(msg):
 			
 			# each time someone adds, we need to check to see if the pickup is full
 			if(len(players) == sizeOfGame):				
-				# confirm everyone is still here
-				if(await someone_is_afk(players, maps, msg)): return			
+				# confirm everyone is still here if it has been over an hour
+				elapsedtime = time.time() - starttime
+				td = timedelta(seconds=elapsedtime)
+				if(td.total_seconds() > 3600):
+					if(await someone_is_afk(players, maps, msg)): return			
+					
 				# do we have the right amount of map nominations
 				if(len(mapPicks) < sizeOfMapPool):
 					# need to build the list of maps
@@ -189,9 +201,16 @@ async def on_message(msg):
 				caps = []
 				redTeam = []
 				blueTeam = []
+												
+				# Map Selection
+				await client.change_presence(game=discord.Game(name='Map Selection'))
+				selector, mappa = choice(list(mapPicks.items()))
+				lastMap.update({selector:mappa})
+				await send_emb_message_to_channel(0x00ff00, "The map has been selected!\n" + str(mappa) + " (" + selector.mention + ")", msg)
+				chosenMap.update({selector:mappa})
 				
 				# captains should be chosen by an admin
-				emb = (discord.Embed(description="The pickup is full and all members are present. " + starter[0].mention + " please select one of the options below", colour=0x00ff00))
+				emb = (discord.Embed(description="The pickup is full, the map has been selected, and all members are present.\n\n" + starter[0].mention + " please select one of the options below", colour=0x00ff00))
 				emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 				emb.add_field(name=cmdprefix + 'captains @Player1 @Player2', value='to manually select the captains', inline=False)
 				emb.add_field(name=cmdprefix + 'shuffle', value='to randomize the captains', inline=False)
@@ -239,21 +258,21 @@ async def on_message(msg):
 				else:
 					redTeam = [caps[0]]
 					blueTeam = [caps[1]]
-					players.remove(redTeam[0])
-					players.remove(blueTeam[0])
+					players.remove(caps[0])
+					players.remove(caps[1])
 				
 				# Begin the pickup
 				await send_emb_message_to_channel(0x00ff00, "The Pickup is Beginning!\n" + caps[0].mention + " vs " + caps[1].mention, msg)
-				await client.change_presence(game=discord.Game(name='Team Selection'))
-				
+								
 				# Switch off picking until the teams are all full
+				await client.change_presence(game=discord.Game(name='Team Selection'))
 				while(len(redTeam) < sizeOfTeams and len(blueTeam) < sizeOfTeams):
 					# RED TEAM PICKS
 					async def redTeamPicks(msg):
 						plyrStr = ""
 						for p in players:
 							plyrStr += p.mention + "\n"
-						await send_emb_message_to_channel(0x00ff00, caps[0].mention + " type @player to pick. Available players are:\n" + plyrStr, msg)
+						await send_emb_message_to_channel(0x00ff00, caps[0].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
 					
 						# check for a pick and catch it if they don't mention an available player
 						while True:
@@ -283,7 +302,7 @@ async def on_message(msg):
 						plyrStr = ""
 						for p in players:
 							plyrStr += p.mention + "\n"
-						await send_emb_message_to_channel(0x00ff00, caps[1].mention + " type @player to pick. Available players are:\n" + plyrStr, msg)
+						await send_emb_message_to_channel(0x00ff00, caps[1].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
 					
 						# check for a pick and catch it if they don't mention an available player
 						while True:
@@ -322,9 +341,6 @@ async def on_message(msg):
 					await client.send_message(p, embed=emb )
 					blueTeamMention.append(p.mention)	# so we can mention all the members of the blue team
 				
-				selector, mappa = choice(list(mapPicks.items()))
-				lastMap.update({selector:mappa})
-				
 				# Display the game information
 				embstr = "The teams and map have been selected"
 				emb = (discord.Embed(title=embstr, colour=0x00ff00))
@@ -343,14 +359,12 @@ async def on_message(msg):
 					try:
 						await client.move_member(p, client.get_channel(redteamChannelID))
 					except(InvalidArgument, HTTPException, Forbidden):
-						continue
-					break					
+						continue				
 				for p in blueTeam:
 					try:
 						await client.move_member(p, client.get_channel(blueteamChannelID))
 					except(InvalidArgument, HTTPException, Forbidden):
 						continue
-					break
 					
 				# Save all the information for !last
 				lastRedTeam = []
@@ -393,6 +407,7 @@ async def on_message(msg):
 		emb.add_field(name=cmdprefix + 'journals', value='Displays a link to 55 papers written by Dr. Hawking in a peer-reviewed journal', inline=False)
 		emb.add_field(name=cmdprefix + 'demos', value='Provides you with a link to the currently stored demos', inline=False)
 		emb.add_field(name=cmdprefix + 'last', value='Displays information about the last pickup that was played', inline=False)
+		emb.add_field(name=cmdprefix + 'map', value='Show the chose map for the current pickup', inline=False)
 		emb.add_field(name=cmdprefix + 'maps', value='Show the nominated maps for the current pickup', inline=False)
 		emb.add_field(name=cmdprefix + 'maplist', value='Provides you with a list of all the maps that are available for nomination', inline=False)
 		emb.add_field(name=cmdprefix + 'nominate', value='Nominate the specified map', inline=False)
@@ -470,6 +485,20 @@ async def on_message(msg):
 		emb2.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb2 )
 				
+	# Map (but not maps) - Show the chosen map for the current pickup
+	if (msg.content.startswith(cmdprefix + "map") and not msg.content.startswith(cmdprefix + "maps")):
+		# there must be an active pickup
+		if(pickupRunning):
+			# only allow if pickup selection has already begun
+			if(selectionMode):
+				for k in chosenMap:
+					mapStr = str(chosenMap[k]) + " (" + k.mention + ")\n"
+				await send_emb_message_to_channel(0x00ff00, "The map for this pickup is " + mapStr, msg)				
+			else:
+				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot see the map until the pickup has begun", msg)
+		else:
+			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
+			
 	# Maps or Nominated - Show the nominated maps for the current pickup
 	if (msg.content.startswith(cmdprefix + "maps") or msg.content.startswith(cmdprefix + "nominated")):
 		# there must be an active pickup
@@ -536,6 +565,7 @@ async def on_message(msg):
 				starter.append(msg.author)
 				await send_emb_message_to_channel(0x00ff00, "A pickup has been started. " + cmdprefix + "add to join up.", msg)
 				await client.change_presence(game=discord.Game(name='Pickup (' + str(len(players)) + '/' + str(sizeOfGame) + ') ' + cmdprefix + 'add'))
+				starttime = time.time()
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you do not have access to this command", msg)
 			
@@ -604,17 +634,13 @@ async def on_message(msg):
 	if(msg.content.startswith(cmdprefix + "teams")):
 		# there must be an active pickup
 		if(pickupRunning):
-			# only allow if pickup has not already begun
-			if(selectionMode):
-				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command while the teams are being selected", msg)
-			else:
-				if(len(players) < 1):
-					await send_emb_message_to_channel(0x00ff00, "The pickup is empty right now. " + cmdprefix + "add to join", msg)					
-				elif(len(players) > 0):
-					plyrStr = ""
-					for p in players:
-						plyrStr += p.mention + "\n"
-					await send_emb_message_to_channel(0x00ff00, "Players:\n" + plyrStr, msg)
+			if(len(players) < 1):
+				await send_emb_message_to_channel(0x00ff00, "The pickup is empty right now. " + cmdprefix + "add to join", msg)					
+			elif(len(players) > 0):
+				plyrStr = ""
+				for p in players:
+					plyrStr += p.mention + "\n"
+				await send_emb_message_to_channel(0x00ff00, "Players:\n" + plyrStr, msg)
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
 			
