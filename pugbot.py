@@ -485,8 +485,8 @@ async def on_message(msg):
 		emb2.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb2 )
 				
-	# Map (but not maps) - Show the chosen map for the current pickup
-	if (msg.content.startswith(cmdprefix + "map") and not msg.content.startswith(cmdprefix + "maps")):
+	# Map (but not maps or maplist) - Show the chosen map for the current pickup
+	if (msg.content.startswith(cmdprefix + "map") and not msg.content.startswith(cmdprefix + "maps") and not msg.content.startswith(cmdprefix + "maplist")):
 		# there must be an active pickup
 		if(pickupRunning):
 			# only allow if pickup selection has already begun
