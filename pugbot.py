@@ -422,8 +422,9 @@ async def on_message(msg):
 			emb.set_author(name=client.user.name, icon_url=client.user.default_avatar_url)
 			emb.add_field(name=cmdprefix + 'end', value='End the current pickup (even if you did not start it)', inline=False)
 			emb.add_field(name=cmdprefix + 'pickup', value='Start a new pickup game', inline=False)
-			emb.add_field(name=cmdprefix + 'players', value='Change the number of players and the size of the teams', inline=False)
-			emb.add_field(name=cmdprefix + 'transfer', value='Give your pickup to another admin (Game Starter Only)', inline=False)
+			emb.add_field(name=cmdprefix + 'players <numberOfPlayers>', value='Change the number of players and the size of the teams', inline=False)
+			emb.add_field(name=cmdprefix + 'remove @player', value='Removes the player you specified from the pickup', inline=False)
+			emb.add_field(name=cmdprefix + 'transfer @admin', value='Give your pickup to another admin (Game Starter Only)', inline=False)
 			await client.send_message(msg.author, embed=emb)
 			
 	# Demos - Provides the msg.author with a link to the currently stored demos via direct message
@@ -616,14 +617,30 @@ async def on_message(msg):
 	if (msg.content.startswith(cmdprefix + "remove")):
 		# there must be an active pickup
 		if(pickupRunning):
-			if(selectionMode is True):
-				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot remove once the pickup has begun", msg)
-			elif(msg.author in players):
-				players.remove(msg.author)		# remove from players list
-				mapPicks.pop(msg.author, None)	# remove this players nomination if they had one
-				await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you have been removed from the pickup", msg)
-			else:
-				await send_emb_message_to_channel(0x00ff00, msg.author.mention + " no worries, you never even added", msg)
+			if(selectionMode is False):
+				try:
+					idleUser = msg.mentions[0]
+					# must be an admin to remove someone other than yourself
+					if(await user_has_access(msg.author)):
+						if(idleUser in players):
+							players.remove(idleUser)		# remove from players list
+							mapPicks.pop(idleUser, None)	# remove this players nomination if they had one
+							await send_emb_message_to_channel(0x00ff00, idleUser.mention + " you have been removed from the pickup by " + msg.author.mention + " (admin)", msg)
+						else:
+							await send_emb_message_to_channel(0x00ff00, msg.author.mention + " that user is not added to the pickup", msg)
+					else:
+						await send_emb_message_to_channel(0xff0000, msg.author.mention + " you do not have access to this command", msg)
+				except(IndexError):
+					# no user mentioned so check if the author is in pickup 
+					if(msg.author in players):
+						players.remove(msg.author)		# remove from players list
+						mapPicks.pop(msg.author, None)	# remove this players nomination if they had one
+						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you have been removed from the pickup", msg)
+					else:
+						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " no worries, you never even added", msg)
+			else:	
+				# selectionMode is True
+				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use !remove once the pickup has begun", msg)
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
 	
