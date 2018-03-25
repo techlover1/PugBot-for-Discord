@@ -20,6 +20,7 @@ blueteamChannelID = config.blueteamChannelID
 cmdprefix = config.cmdprefix
 discordServerID = config.discordServerID
 maps = config.maps
+mapprefix = config.mapprefix
 playerRoleStr = config.playerRoleStr
 quotes = config.quotes
 redteamChannelID = config.redteamChannelID
@@ -117,6 +118,21 @@ async def someone_is_afk(players, maps, message):
 			return True
 		await send_emb_message_to_channel(0x00ff00, p.mention + " has checked in." , message)
 	return False
+
+# Check to see if the map nominated is an alias
+async def mapname_is_alias(msg, mpname):
+	if(len(mpname) < 4): 
+		await send_emb_message_to_channel(0xff0000, msg.author.mention + " that alias is not long enough. You must use at least 4-letter words for the mapname", msg)
+		return "TOOSHORT"
+	for m in maps:
+		mstr = str(m)
+		# trim off the 'FF_' if it exists
+		if(mstr.startswith(mapprefix)): 
+			mstr = mstr[3:]
+		# now check if the mapname matches
+		if(mstr.startswith(mpname)): 
+			return m
+	return "INVALID"
 	
 # Every time we receive a message
 @client.event
@@ -528,13 +544,17 @@ async def on_message(msg):
 					message = msg.content.split()
 					# make sure the user provided a map
 					if(len(message) > 1):
+						# check to see if the provided map is an alias
+						atom = await mapname_is_alias(msg, message[1])
+						if(atom == "TOOSHORT"): return
+						elif(atom == "INVALID"): atom = message[1]
 						# only allow maps that exist on server and only put in list once
-						if(message[1] in maps and message[1] not in mapPicks):
+						if(atom in maps and atom not in mapPicks):
 							# only allow a certain number of maps
 							if(len(mapPicks) < sizeOfMapPool or msg.author in mapPicks):
 								# users may only nominate one map
-								mapPicks.update({msg.author:message[1]})
-								await send_emb_message_to_channel(0x00ff00, msg.author.mention + " has nominated " + message[1], msg)
+								mapPicks.update({msg.author:atom})
+								await send_emb_message_to_channel(0x00ff00, msg.author.mention + " has nominated " + atom, msg)
 							else:
 								# need to build the list of maps
 								mapStr = ""
@@ -543,7 +563,7 @@ async def on_message(msg):
 								emb = (discord.Embed(description=msg.author.mention + " there is already more than " + str(sizeOfMapPool) + " maps nominated", colour=0xff0000))
 								emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 								emb.add_field(name='Current Maps', value=mapStr, inline=False)
-								await client.send_message(msg.channel, embed=emb )
+								await client.send_message(msg.channel, embed=emb )							
 						else:
 							await send_emb_message_to_channel(0xff0000, msg.author.mention + " that map is not in my !maplist or has already been nominated. Please make another selection", msg)
 							await send_emb_message_to_user(0x00ff00, "Currently, you may nominate any of the following maps:\n" + "\n".join(map(str, maps)), msg)
