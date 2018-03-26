@@ -51,6 +51,7 @@ lasttime = time.time()
 players = []
 starter = []
 starttime = time.time()
+mapMode = True
 pickupRunning = False
 randomteams = False	
 selectionMode = False
@@ -152,6 +153,7 @@ async def on_message(msg):
 	global lastMap
 	global lastRedTeam
 	global lasttime
+	global mapMode
 	global mapPicks
 	global pickupRunning
 	global players
@@ -206,7 +208,15 @@ async def on_message(msg):
 				td = timedelta(seconds=elapsedtime)
 				if(td.total_seconds() > 3600):
 					if(await someone_is_afk(players, maps, msg)): return			
-								
+				
+				inputobj = 0			# used to manipulate the objects from messages
+				mapMode = True			# allow nominations until we have a full maplist
+				selectionMode = True	# keep people from changing the queue once the game has begun
+				shuffle(players) 		# shuffle the player pool
+				caps = []
+				redTeam = []
+				blueTeam = []
+				
 				# do we have the right amount of map nominations
 				if(len(mapPicks) < sizeOfMapPool):
 					# need to build the list of maps
@@ -224,13 +234,6 @@ async def on_message(msg):
 						await client.wait_for_message(check=check)
 					await client.change_presence(game=discord.Game(name='ON HOLD ' + cmdprefix + 'nominate maps'))
 					await needMapPicks(msg)
-
-				inputobj = 0			# used to manipulate the objects from messages
-				selectionMode = True	# keep people from changing the queue once the game has begun
-				shuffle(players) 		# shuffle the player pool
-				caps = []
-				redTeam = []
-				blueTeam = []
 												
 				# Map Selection
 				await client.change_presence(game=discord.Game(name='Map Selection'))
@@ -238,6 +241,7 @@ async def on_message(msg):
 				lastMap.update({selector:mappa})
 				await send_emb_message_to_channel(0x00ff00, "The map has been selected!\n" + str(mappa) + " (" + selector.mention + ")", msg)
 				chosenMap.update({selector:mappa})
+				mapMode = False
 				
 				# captains should be chosen by an admin
 				emb = (discord.Embed(description="The pickup is full, the map has been selected, and all members are present.\n\n" + starter[0].mention + " please select one of the options below", colour=0x00ff00))
@@ -431,6 +435,7 @@ async def on_message(msg):
 				blueTeam = []
 				redTeammention = []
 				blueTeammention = []
+				mapMode = True
 				selectionMode = False
 				pickupRunning = False
 				await client.change_presence(game=discord.Game(name='GLHF'))
@@ -560,7 +565,7 @@ async def on_message(msg):
 		# there must be an active pickup
 		if(pickupRunning):
 			# only allow if pickup has not already begun
-			if(selectionMode):
+			if(selectionMode and not mapMode):
 				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot nominate maps once the pickup has begun", msg)
 			else:
 				# must also be added to the current pickup
