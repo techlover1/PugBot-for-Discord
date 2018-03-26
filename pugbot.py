@@ -687,21 +687,25 @@ async def on_message(msg):
 		if(pickupRunning):
 			# admin command
 			if (await user_has_access(msg.author)):
-				# check for a pick and catch it if they don't mention an available player
-				while True:
-					try:
-						newCap = msg.mentions[0]
-					except(IndexError):
-						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you must type !transfer @nameOfAdmin to transfer your pickup.", msg)
-						newCap = msg.author
-					break
-				if(newCap == msg.author): return	# break out if they did not specify a user
-				if(await user_has_access(newCap)):
-					starter = []
-					starter.append(newCap)
-					await send_emb_message_to_channel(0x00ff00, msg.author.mention + " your pickup has successfully been transfered to " + msg.mentions[0].mention, msg)
+				# make sure this admin owns this pickup
+				if(starter[0] == msg.author):
+					# check for a pick and catch it if they don't mention an available player				
+					while True:
+						try:
+							newCap = msg.mentions[0]
+						except(IndexError):
+							await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you must type !transfer @nameOfAdmin to transfer your pickup.", msg)
+							newCap = msg.author
+						break
+					if(newCap == msg.author): return	# break out if they did not specify a user
+					if(await user_has_access(newCap)):
+						starter = []
+						starter.append(newCap)
+						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " your pickup has successfully been transfered to " + msg.mentions[0].mention, msg)
+					else:
+						await send_emb_message_to_channel(0xff0000, msg.author.mention + " you can only transfer your pickup to another admin", msg)
 				else:
-					await send_emb_message_to_channel(0xff0000, msg.author.mention + " you can only transfer your pickup to another admin", msg)
+					await send_emb_message_to_channel(0x00ff00, msg.author.mention + " no worries, this pickup does not belong to you, it belongs to " + starter[0].mention, msg)
 			else:
 				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you do not have access to this command", msg)
 		else:
