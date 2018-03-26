@@ -22,7 +22,7 @@ cmdprefix = config.cmdprefix
 discordServerID = config.discordServerID
 maps = config.maps
 mapprefix = config.mapprefix
-playerRoleStr = config.playerRoleStr
+playerRoleID = config.playerRoleID
 poolRoleID = config.poolRoleID
 quotes = config.quotes
 redteamChannelID = config.redteamChannelID
@@ -166,7 +166,7 @@ async def on_message(msg):
 	# the bot handles authorizing access to the pickup channel
 	if msg.channel.id == requestChannelID: 
 		if(msg.content.startswith(cmdprefix + "pug")):
-			role = discord.utils.get(msg.server.roles, name=playerRoleStr)
+			role = discord.utils.get(msg.server.roles, id=playerRoleID)
 			while True:
 				try:
 					await client.add_roles(msg.author, role)
