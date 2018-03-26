@@ -383,7 +383,12 @@ async def on_message(msg):
 				await client.change_presence(game=discord.Game(name='GLHF'))
 				
 				# change the map in the server to the chosen map
-				rcon.execute('changelevel ' + mappa)
+				while True:
+					try:
+						rcon.execute('changelevel ' + mappa)
+					except:
+						continue
+					break
 					
 				# move the players to their respective voice channels
 				for p in redTeam:
