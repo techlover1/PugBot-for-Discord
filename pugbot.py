@@ -172,7 +172,7 @@ async def on_message(msg):
 				try:
 					await client.add_roles(msg.author, role)
 					await send_emb_message_to_user(0x00ff00, "Successfully added role {0}".format(role.name), msg)					
-				except discord.Forbidden:
+				except (discord.Forbidden, discord.HTTPException):
 					continue
 				break
 				
@@ -196,7 +196,10 @@ async def on_message(msg):
 			else:	# all clear to add them				
 				# add to pool for easier notification
 				role = discord.utils.get(msg.server.roles, id=poolRoleID)
-				await client.add_roles(msg.author, role)
+				try:
+					await client.add_roles(msg.author, role)
+				except (discord.Forbidden, discord.HTTPException):
+					pass
 				players.append(msg.author)
 				await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you have been added to the pickup.\nThere are currently " + str(len(players)) + "/" + str(sizeOfGame) + " Players in the pickup", msg)
 				await client.change_presence(game=discord.Game(name='Pickup (' + str(len(players)) + '/' + str(sizeOfGame) + ') ' + cmdprefix + 'add'))
@@ -382,12 +385,10 @@ async def on_message(msg):
 				await client.change_presence(game=discord.Game(name='GLHF'))
 				
 				# change the map in the server to the chosen map
-				while True:
-					try:
-						rcon.execute('changelevel ' + mappa)
-					except:
-						continue
-					break
+				try:
+					rcon.execute('changelevel ' + mappa)
+				except Exception:
+					pass
 					
 				# move the players to their respective voice channels
 				for p in redTeam:
@@ -478,6 +479,12 @@ async def on_message(msg):
 			# admin command
 			if (await user_has_access(msg.author)):
 				mapPicks.clear()
+				role = discord.utils.get(msg.server.roles, id=poolRoleID)
+				for p in players:
+					try:
+						await client.remove_roles(p, role)
+					except Exception:
+						pass
 				del players[:]
 				del starter[:]
 				selectionMode = False
@@ -670,6 +677,11 @@ async def on_message(msg):
 						if(idleUser in players):
 							players.remove(idleUser)		# remove from players list
 							mapPicks.pop(idleUser, None)	# remove this players nomination if they had one
+							role = discord.utils.get(msg.server.roles, id=poolRoleID)
+							try:
+								await client.remove_roles(msg.mentions[0], role)
+							except Exception:
+								pass
 							await send_emb_message_to_channel(0x00ff00, idleUser.mention + " you have been removed from the pickup by " + msg.author.mention + " (admin)", msg)
 						else:
 							await send_emb_message_to_channel(0x00ff00, msg.author.mention + " that user is not added to the pickup", msg)
@@ -680,6 +692,11 @@ async def on_message(msg):
 					if(msg.author in players):
 						players.remove(msg.author)		# remove from players list
 						mapPicks.pop(msg.author, None)	# remove this players nomination if they had one
+						role = discord.utils.get(msg.server.roles, id=poolRoleID)
+						try:
+							await client.remove_roles(msg.author, role)
+						except Exception:
+							pass
 						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you have been removed from the pickup", msg)
 					else:
 						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " no worries, you never even added", msg)
