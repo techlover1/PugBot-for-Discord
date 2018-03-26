@@ -7,6 +7,7 @@
 from datetime import timedelta
 from random import shuffle
 from random import choice
+import asyncio
 import config
 import discord
 import requests
@@ -22,6 +23,7 @@ discordServerID = config.discordServerID
 maps = config.maps
 mapprefix = config.mapprefix
 playerRoleStr = config.playerRoleStr
+poolRoleID = config.poolRoleID
 quotes = config.quotes
 redteamChannelID = config.redteamChannelID
 requestChannelID = config.requestChannelID
@@ -134,9 +136,18 @@ async def mapname_is_alias(msg, mpname):
 			return m
 	return "INVALID"
 	
+async def remove_from_pool(msg, redTeam, blueTeam, poolRoleID):
+	await asyncio.sleep(300)
+	role = discord.utils.get(msg.server.roles, id=poolRoleID)
+	for p in redTeam:
+		await client.remove_roles(p, role)
+	for p in blueTeam:
+		await client.remove_roles(p, role)
+		
+		
 # Every time we receive a message
 @client.event
-async def on_message(msg):	
+async def on_message(msg):
 	global chosenMap
 	global lastBlueTeam
 	global lastMap
@@ -163,6 +174,7 @@ async def on_message(msg):
 				except discord.Forbidden:
 					continue
 				break
+				
 	if(msg.channel.id != singleChannelID): return	# only listen the the specified channel
 	
 	if msg.author == client.user: return			# talking to yourself isn't cool...even for bots
@@ -180,7 +192,10 @@ async def on_message(msg):
 				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot add once the pickup has begun", msg)
 			elif(len(players) == sizeOfGame):
 				await send_emb_message_to_channel(0xff0000, msg.author.mention + " sorry, the game is currently full\nYou will have to wait until the next one starts", msg)
-			else:	# all clear to add them
+			else:	# all clear to add them				
+				# add to pool for easier notification
+				role = discord.utils.get(msg.server.roles, id=poolRoleID)
+				await client.add_roles(msg.author, role)
 				players.append(msg.author)
 				await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you have been added to the pickup.\nThere are currently " + str(len(players)) + "/" + str(sizeOfGame) + " Players in the pickup", msg)
 				await client.change_presence(game=discord.Game(name='Pickup (' + str(len(players)) + '/' + str(sizeOfGame) + ') ' + cmdprefix + 'add'))
@@ -192,7 +207,7 @@ async def on_message(msg):
 				td = timedelta(seconds=elapsedtime)
 				if(td.total_seconds() > 3600):
 					if(await someone_is_afk(players, maps, msg)): return			
-					
+								
 				# do we have the right amount of map nominations
 				if(len(mapPicks) < sizeOfMapPool):
 					# need to build the list of maps
@@ -369,7 +384,7 @@ async def on_message(msg):
 				
 				# change the map in the server to the chosen map
 				rcon.execute('changelevel ' + mappa)
-				
+					
 				# move the players to their respective voice channels
 				for p in redTeam:
 					try:
@@ -381,7 +396,7 @@ async def on_message(msg):
 						await client.move_member(p, client.get_channel(blueteamChannelID))
 					except(InvalidArgument, HTTPException, Forbidden):
 						continue
-					
+				
 				# Save all the information for !last
 				lastRedTeam = []
 				lastBlueTeam = []
@@ -398,6 +413,10 @@ async def on_message(msg):
 					outfile.write(str(selector.name) + "\n")
 					outfile.write(str(mappa) + "\n")
 					outfile.write(str(lasttime))
+				
+				# schedule a background task to remove the players from the pool
+				# this is so we can still notify them all for a few minutes
+				client.loop.create_task(remove_from_pool(msg, redTeam, blueTeam, poolRoleID))
 					
 				# Reset so we can play another one
 				mapPicks = {}
@@ -409,7 +428,8 @@ async def on_message(msg):
 				redTeammention = []
 				blueTeammention = []
 				selectionMode = False
-				pickupRunning = False				
+				pickupRunning = False
+				await client.change_presence(game=discord.Game(name='GLHF'))
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
 			
@@ -578,7 +598,7 @@ async def on_message(msg):
 	if(msg.content.startswith(cmdprefix + "pickup")):
 		# admin command
 		if (await user_has_access(msg.author)):
-			# only start one if there is not already one running
+			# only start one if there is not already one running	
 			if(pickupRunning):
 				await send_emb_message_to_channel(0xff0000, "There is already a pickup running. " + cmdprefix + "teams to see the game details", msg)
 			else:
@@ -590,7 +610,7 @@ async def on_message(msg):
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you do not have access to this command", msg)
 			
-	# Players - Change the number of players and the size of the teamsa
+	# Players - Change the number of players and the size of the teams
 	if(msg.content.startswith(cmdprefix + "players")):
 		# there must be an active pickup
 		if(pickupRunning):
