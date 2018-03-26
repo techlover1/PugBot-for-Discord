@@ -92,8 +92,7 @@ async def send_emb_message_to_user(colour, embstr, message):
 # Cycle through a user's roles to determine if they have admin access
 # returns True if they do have access
 async def user_has_access(author):
-	for r in author.roles:
-		if (adminRoleID == r.id): return True
+	if adminRoleID in [r.id for r in author.roles]: return True
 	return False
 
 # Check to make sure all added players are still present
