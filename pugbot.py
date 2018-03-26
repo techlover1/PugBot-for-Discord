@@ -303,9 +303,7 @@ async def on_message(msg):
 				while(len(redTeam) < sizeOfTeams and len(blueTeam) < sizeOfTeams):
 					# RED TEAM PICKS
 					async def redTeamPicks(msg):
-						plyrStr = ""
-						for p in players:
-							plyrStr += p.mention + "\n"
+						plyrStr = '\n'.join([p.mention for p in players])
 						await send_emb_message_to_channel(0x00ff00, caps[0].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
 					
 						# check for a pick and catch it if they don't mention an available player
@@ -333,9 +331,7 @@ async def on_message(msg):
 						
 					# BLUE TEAM PICKS
 					async def blueTeamPicks(msg):
-						plyrStr = ""
-						for p in players:
-							plyrStr += p.mention + "\n"
+						plyrStr = '\n'.join([p.mention for p in players])
 						await send_emb_message_to_channel(0x00ff00, caps[1].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
 					
 						# check for a pick and catch it if they don't mention an available player
@@ -703,9 +699,7 @@ async def on_message(msg):
 			if(len(players) < 1):
 				await send_emb_message_to_channel(0x00ff00, "The pickup is empty right now. " + cmdprefix + "add to join", msg)					
 			elif(len(players) > 0):
-				plyrStr = ""
-				for p in players:
-					plyrStr += p.mention + "\n"
+				plyrStr = '\n'.join([p.mention for p in players])
 				await send_emb_message_to_channel(0x00ff00, "Players:\n" + plyrStr, msg)
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
