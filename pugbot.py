@@ -2,7 +2,7 @@
 # Modified by: Alex Laswell for use with Fortress Forever
 # Based on: 
 #	PugBot-for-Discord by techlover1 https://github.com/techlover1/PugBot-for-Discord
-
+			
 # Imports
 from datetime import timedelta
 from random import shuffle
@@ -10,7 +10,9 @@ from random import choice
 import asyncio
 import config
 import discord
+import json
 import requests
+import strawpoll
 import time
 import valve.rcon
 
@@ -42,8 +44,8 @@ client = discord.Client()
 server = client.get_server(id=discordServerID)
 
 # Globals 
-chosenMap = {}
-lastMap = {}
+chosenMap = []
+lastMap = []
 mapPicks = {}
 lastRedTeam = []
 lastBlueTeam = []
@@ -53,8 +55,9 @@ starter = []
 starttime = time.time()
 mapMode = True
 pickupRunning = False
-randomteams = False	
+randomTeams = False	
 selectionMode = False
+voteForMaps = True
 		
 # Setup an RCON connection 
 rcon = valve.rcon.RCON(server_address, rconPW)
@@ -66,14 +69,12 @@ try:
 	with open('lastgameinfo') as infile:
 		lastRedTeam = infile.readline().split(",")
 		lastBlueTeam = infile.readline().split(",")
-		selector = infile.readline()
-		mappa = infile.readline()
-		lastMap.update({selector:mappa})
+		lastMap = infile.readline()
 		lasttime = float(infile.readline())
 except IOError as error:
 	lastRedTeam = []
 	lastBlueTeam = []
-	lastMap = {}
+	lastMap = []
 	lasttime = time.time()
 	
 # Send a rich embeded messages instead of a plain ones
@@ -89,7 +90,37 @@ async def send_emb_message_to_user(colour, embstr, message):
 	emb = (discord.Embed(description=embstr, colour=colour))
 	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 	await client.send_message(message.author, embed=emb )
-	
+
+# send a request to get the strawpoll data after 60 seconds of voting
+async def get_strawpoll_results(message, json):
+	await asyncio.sleep(60)
+	# keep trying to get the poll data until successful
+	while True:
+		try:
+			req = requests.get('https://www.strawpoll.me/api/v2/polls/' + str(json["id"]))
+		except:
+			pass
+		break
+	return req.json()
+
+# create a strawpoll so players can vote for the maps
+async def create_a_strawpoll(message, mapPicks):
+	# get a list of the maps that have been nominated
+	option = []
+	for k in mapPicks:
+		option.append(mapPicks[k])	
+	# initialize the strawpoll.API
+	strawpollAPI = strawpoll.API()
+	# keep trying to create a new poll until successful
+	while True:
+		try:
+			req = requests.post('https://www.strawpoll.me/api/v2/polls', json = {"title":"Map Selection", "options": option, "multi":"false"}, headers={"Content Type":"application/json"})
+			json = req.json()
+		except (strawpoll.errors.HTTPException, KeyError):
+			pass
+		break
+	return json
+		
 # Cycle through a user's roles to determine if they have admin access
 # returns True if they do have access
 async def user_has_access(author):
@@ -157,12 +188,14 @@ async def on_message(msg):
 	global mapPicks
 	global pickupRunning
 	global players
+	global randomTeams
 	global sizeOfGame
 	global sizeOfTeams
 	global selectionMode
 	global starter
 	global starttime
-	global randomteams
+	global voteForMaps
+	
 	
 	# the bot handles authorizing access to the pickup channel
 	if msg.channel.id == requestChannelID: 
@@ -220,6 +253,9 @@ async def on_message(msg):
 				redTeam = []
 				blueTeam = []
 				
+				# Map Selection
+				await client.change_presence(game=discord.Game(name='Map Selection'))
+				
 				# do we have the right amount of map nominations
 				if(len(mapPicks) < sizeOfMapPool):
 					# need to build the list of maps
@@ -232,18 +268,55 @@ async def on_message(msg):
 						# check function for advance filtering
 						async def check(msg):
 							return msg.content.startswith(cmdprefix + 'nominate')
-						
 						# wait until someone nominates another map
 						await client.wait_for_message(check=check)
-					await client.change_presence(game=discord.Game(name='ON HOLD ' + cmdprefix + 'nominate maps'))
 					await needMapPicks(msg)
 												
-				# Map Selection
-				await client.change_presence(game=discord.Game(name='Map Selection'))
-				selector, mappa = choice(list(mapPicks.items()))
-				lastMap.update({selector:mappa})
-				await send_emb_message_to_channel(0x00ff00, "The map has been selected!\n" + str(mappa) + " (" + selector.mention + ")", msg)
-				chosenMap.update({selector:mappa})
+				# vote for maps or random
+				if(voteForMaps):
+					# create a strawpoll
+					json = await create_a_strawpoll(msg, mapPicks)
+					# build the URL
+					pollURL = "https://strawpoll.me/" + str(json["id"])
+					# get the correct role and notice all
+					role = discord.utils.get(msg.server.roles, id=poolRoleID)
+					await send_emb_message_to_channel(0x00ff00, "Map voting has started\n" + role.mention + " check my PM for a link to vote\nChoose carefully, you may only cast your vote once", msg)
+					emb = (discord.Embed(description="Map voting has started\nYou have 60 seconds to cast your vote at\n" + pollURL, colour=0x00ff00))
+					emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+					# send the link via PM so no one else can vote
+					for p in players:
+							await client.send_message(p, embed=emb )
+					# schedule a task to collect the results after 60 seconds have elapsed
+					json = await get_strawpoll_results(msg, json)
+					# find out what the max number of vote is and where to find it
+					position = 0
+					topvote = -1
+					duplicateFnd = False
+					positions = []
+					for pos, vote in enumerate(json["votes"]):
+						if(topvote < vote): 
+							topvote = vote
+							position = pos
+					# now that we have the max and it's position, loop again to gather positions of duplicates
+					for pos, vote in enumerate(json["votes"]):
+						if(topvote != vote): continue # keep looping if they are different
+						# topvote == vote therefor we have a tie
+						if(not duplicateFnd): duplicateFnd = True
+						positions.append(pos)
+						
+					# randomly pick from list if we have a tie
+					if(duplicateFnd):		
+						position = choice(positions)
+					mappa = json["options"][position]	
+				else: # random map mode
+					selector, mappa = choice(list(mapPicks.items()))				
+				# tell the users what map won
+				emb = (discord.Embed(title="The map has been selected", colour=0x00ff00))
+				emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+				emb.add_field(name='Map', value=str(mappa))										# Display the map information
+				await client.send_message(msg.channel, embed=emb )
+				lastMap = mappa
+				chosenMap = mappa
 				mapMode = False
 				
 				# captains should be chosen by an admin
@@ -284,11 +357,11 @@ async def on_message(msg):
 					else:
 						await client.send_message(msg.channel, embed=emb )
 				while(len(caps) < 2):
-					randomteams = await pickCaptains(msg, caps, players)
+					randomTeams = await pickCaptains(msg, caps, players)
 				
 				# set up the initial teams
 				shuffle(caps)	# shuffle the captains so the first guy doesn't always pick first
-				if(randomteams):
+				if(randomTeams):
 					for i in range(0, sizeOfTeams):
 						redTeam.append(players[i])
 						blueTeam.append(players[i+sizeOfTeams])
@@ -375,12 +448,11 @@ async def on_message(msg):
 					blueTeamMention.append(p.mention)	# so we can mention all the members of the blue team
 				
 				# Display the game information
-				embstr = "The teams and map have been selected"
-				emb = (discord.Embed(title=embstr, colour=0x00ff00))
+				emb = (discord.Embed(title="The teams and map have been selected", colour=0x00ff00))
 				emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 				emb.add_field(name='Red Team', value="\n".join(map(str, redTeamMention)))		# Red Team information
 				emb.add_field(name='Blue Team', value="\n".join(map(str, blueTeamMention)))		# Blue Team information				
-				emb.add_field(name='Map', value=str(mappa) + " (" + selector.mention + ")")		# Display the map information
+				emb.add_field(name='Map', value=str(mappa))										# Display the map information
 				await client.send_message(msg.channel, embed=emb )
 				await client.change_presence(game=discord.Game(name='GLHF'))
 				
@@ -415,7 +487,6 @@ async def on_message(msg):
 				with open('lastgameinfo', 'w') as outfile:
 					outfile.write(",".join(map(str, lastRedTeam)) + "\n")
 					outfile.write(",".join(map(str, lastBlueTeam)) + "\n")
-					outfile.write(str(selector.name) + "\n")
 					outfile.write(str(mappa) + "\n")
 					outfile.write(str(lasttime))
 				
@@ -435,6 +506,7 @@ async def on_message(msg):
 				mapMode = True
 				selectionMode = False
 				pickupRunning = False
+				voteForMaps = True
 				await client.change_presence(game=discord.Game(name='GLHF'))
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
@@ -466,6 +538,7 @@ async def on_message(msg):
 			emb.add_field(name=cmdprefix + 'pickup', value='Start a new pickup game', inline=False)
 			emb.add_field(name=cmdprefix + 'players <numberOfPlayers>', value='Change the number of players and the size of the teams', inline=False)
 			emb.add_field(name=cmdprefix + 'remove @player', value='Removes the player you specified from the pickup', inline=False)
+			emb.add_field(name=cmdprefix + 'setmode <random/vote>', value='Change the way the map is chosen, options are random or vote (Game Starter Only)', inline=False)
 			emb.add_field(name=cmdprefix + 'transfer @admin', value='Give your pickup to another admin (Game Starter Only)', inline=False)
 			await client.send_message(msg.author, embed=emb)
 			
@@ -521,10 +594,8 @@ async def on_message(msg):
 		elapsedtime = time.time() - lasttime
 		td = timedelta(seconds=elapsedtime)
 		td = td - timedelta(microseconds=td.microseconds)
-		# get the last map and the player who nominated it
-		lmstr = ""
-		for k in lastMap: lmstr = str(lastMap[k]) + " (" + str(k) + ")\n"
-		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lmstr, colour=0x00ff00))
+		# get the last map that was played on
+		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lastMap, colour=0x00ff00))
 		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb )
 		emb1 = (discord.Embed(title="Red Team:\n" + "\n".join(map(str, lastRedTeam)), colour=0xff0000))
@@ -540,9 +611,7 @@ async def on_message(msg):
 		if(pickupRunning):
 			# only allow if pickup selection has already begun
 			if(selectionMode):
-				for k in chosenMap:
-					mapStr = str(chosenMap[k]) + " (" + k.mention + ")\n"
-				await send_emb_message_to_channel(0x00ff00, "The map for this pickup is " + mapStr, msg)				
+				await send_emb_message_to_channel(0x00ff00, "The map for this pickup is " + chosenMap, msg)				
 			else:
 				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot see the map until the pickup has begun", msg)
 		else:
@@ -706,6 +775,37 @@ async def on_message(msg):
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
 	
+	# Setmode - Change the way the map is picked
+	if (msg.content.startswith(cmdprefix + "setmode")):
+		# there must be an active pickup
+		if(pickupRunning):
+			# admin command
+			if (await user_has_access(msg.author)):
+				# make sure this admin owns this pickup
+				if(starter[0] == msg.author):
+					message = msg.content.split()
+					# check for a pick and catch it if they don't mention a valid mode				
+					try:
+						m = message[1]
+						if(m.startswith("random")):
+							voteForMaps = False
+							await send_emb_message_to_channel(0x00ff00, "Map Selection has successfully been changed to randomly select from the list of nominations", msg)
+						elif(m.startswith("vote")):
+							voteForMaps = True
+							await send_emb_message_to_channel(0x00ff00, "Map Selection has successfully been changed to call a player vote", msg)
+						else:
+							await send_emb_message_to_channel(0xff0000, msg.author.mention + " that is not a valid mode you must type !setmode random or !setmode vote", msg)
+							return
+					except(IndexError):
+						await send_emb_message_to_channel(0xff0000, msg.author.mention + " to change the map selection mode you must type !setmode random or !setmode vote", msg)
+						return
+				else:
+					await send_emb_message_to_channel(0xff0000, msg.author.mention + " sorry, this pickup does not belong to you, it belongs to " + starter[0].mention, msg)
+			else:
+				await send_emb_message_to_channel(0xff0000, msg.author.mention + " you do not have access to this command", msg)
+		else:
+			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)	
+			
 	# Sendinfo - Sends msg.author the server IP and password via direct message
 	if(msg.content.startswith(cmdprefix + "sendinfo")): await send_emb_message_to_user(0x00ff00, "connect " + serverID + " " + serverPW, msg)
 		
