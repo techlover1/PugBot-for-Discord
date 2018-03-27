@@ -14,4 +14,3 @@ PugBot for discord is a bot for managing pickup games. This version has been upd
 - [discord](https://github.com/Rapptz/discord.py)
 - [python-valve](https://github.com/serverstf/python-valve)
 - [requests](https://github.com/requests/requests)
-- [strawpoll](https://pypi.python.org/pypi/strawpoll.py)
