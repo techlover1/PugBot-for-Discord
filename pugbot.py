@@ -10,9 +10,7 @@ from random import choice
 import asyncio
 import config
 import discord
-import json
 import requests
-import strawpoll
 import time
 import valve.rcon
 
@@ -91,36 +89,6 @@ async def send_emb_message_to_user(colour, embstr, message):
 	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 	await client.send_message(message.author, embed=emb )
 
-# send a request to get the strawpoll data after 60 seconds of voting
-async def get_strawpoll_results(message, json):
-	await asyncio.sleep(60)
-	# keep trying to get the poll data until successful
-	while True:
-		try:
-			req = requests.get('https://www.strawpoll.me/api/v2/polls/' + str(json["id"]))
-		except:
-			pass
-		break
-	return req.json()
-
-# create a strawpoll so players can vote for the maps
-async def create_a_strawpoll(message, mapPicks):
-	# get a list of the maps that have been nominated
-	option = []
-	for k in mapPicks:
-		option.append(mapPicks[k])	
-	# initialize the strawpoll.API
-	strawpollAPI = strawpoll.API()
-	# keep trying to create a new poll until successful
-	while True:
-		try:
-			req = requests.post('https://www.strawpoll.me/api/v2/polls', json = {"title":"Map Selection", "options": option, "multi":"false"}, headers={"Content Type":"application/json"})
-			json = req.json()
-		except (strawpoll.errors.HTTPException, KeyError):
-			pass
-		break
-	return json
-		
 # Cycle through a user's roles to determine if they have admin access
 # returns True if they do have access
 async def user_has_access(author):
@@ -274,40 +242,54 @@ async def on_message(msg):
 												
 				# vote for maps or random
 				if(voteForMaps):
-					# create a strawpoll
-					json = await create_a_strawpoll(msg, mapPicks)
-					# build the URL
-					pollURL = "https://strawpoll.me/" + str(json["id"])
-					# get the correct role and notice all
-					role = discord.utils.get(msg.server.roles, id=poolRoleID)
-					await send_emb_message_to_channel(0x00ff00, "Map voting has started\n" + role.mention + " check my PM for a link to vote\nChoose carefully, you may only cast your vote once", msg)
-					emb = (discord.Embed(description="Map voting has started\nYou have 60 seconds to cast your vote at\n" + pollURL, colour=0x00ff00))
-					emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-					# send the link via PM so no one else can vote
-					for p in players:
-							await client.send_message(p, embed=emb )
-					# schedule a task to collect the results after 60 seconds have elapsed
-					json = await get_strawpoll_results(msg, json)
-					# find out what the max number of vote is and where to find it
+					votelist = {}
+					votetotals = []
+					[votetotals.append(0) for x in range(sizeOfMapPool)]
+					positions = []
+					countdown = time.time()
+					elapsedtime = time.time() - countdown
+					td = timedelta(seconds=elapsedtime)
 					position = 0
 					topvote = -1
 					duplicateFnd = False
-					positions = []
-					for pos, vote in enumerate(json["votes"]):
+					role = discord.utils.get(msg.server.roles, id=poolRoleID)
+					await send_emb_message_to_channel(0x00ff00, "Map voting has started\n\n" + role.mention + " you have 60 seconds to vote for a map\n\nreply with a number between 1 and " + str(sizeOfMapPool) + " to cast your vote", msg)
+					while(td.total_seconds() < 60):
+						async def gatherVotes(msg):						
+							# check function for advance filtering
+							def check(msg):
+								# only accept votes from members in the pool
+								# update the vote if they change it
+								if(poolRoleID in [r.id for r in msg.author.roles]):
+									for x in range(1,sizeOfMapPool+1):
+										if(msg.content.startswith(str(x))):
+											votelist.update({msg.author.name:x})
+									return True
+							# listen for votes, wait no more than 60 seconds
+							await client.wait_for_message(timeout=60, check=check)
+						await gatherVotes(msg)
+						elapsedtime = time.time() - countdown
+						td = timedelta(seconds=elapsedtime)
+					# vote time has expired
+					await send_emb_message_to_channel(0xff0000, "Map voting has finished", msg)
+					for k,v in votelist.items():
+						votetotals[v-1] += 1 
+					# find the max number and it's position
+					for pos, vote in enumerate(votetotals):
 						if(topvote < vote): 
 							topvote = vote
 							position = pos
-					# now that we have the max and it's position, loop again to gather positions of duplicates
-					for pos, vote in enumerate(json["votes"]):
+					# now that we have the max and it's position
+					# loop one final time to gather positions of duplicates
+					for pos, vote in enumerate(votetotals):
 						if(topvote != vote): continue # keep looping if they are different
 						# topvote == vote therefor we have a tie
 						if(not duplicateFnd): duplicateFnd = True
 						positions.append(pos)
-						
 					# randomly pick from list if we have a tie
 					if(duplicateFnd):		
 						position = choice(positions)
-					mappa = json["options"][position]	
+					mappa = list(mapPicks.values())[position]	
 				else: # random map mode
 					selector, mappa = choice(list(mapPicks.items()))				
 				# tell the users what map won
