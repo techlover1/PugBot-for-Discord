@@ -734,6 +734,7 @@ async def on_message(msg):
 							except Exception:
 								pass
 							await send_emb_message_to_channel(0x00ff00, idleUser.mention + " you have been removed from the pickup by " + msg.author.mention + " (admin)", msg)
+							await client.change_presence(game=discord.Game(name='Pickup (' + str(len(players)) + '/' + str(sizeOfGame) + ') ' + cmdprefix + 'add'))
 						else:
 							await send_emb_message_to_channel(0x00ff00, msg.author.mention + " that user is not added to the pickup", msg)
 					else:
@@ -749,6 +750,7 @@ async def on_message(msg):
 						except Exception:
 							pass
 						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " you have been removed from the pickup", msg)
+						await client.change_presence(game=discord.Game(name='Pickup (' + str(len(players)) + '/' + str(sizeOfGame) + ') ' + cmdprefix + 'add'))
 					else:
 						await send_emb_message_to_channel(0x00ff00, msg.author.mention + " no worries, you never even added", msg)
 			else:	
