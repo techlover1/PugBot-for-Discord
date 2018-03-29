@@ -577,7 +577,7 @@ async def on_message(msg):
 		td = timedelta(seconds=elapsedtime)
 		td = td - timedelta(microseconds=td.microseconds)
 		# get the last map that was played on
-		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lastMap, colour=0x00ff00))
+		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lastMap[0], colour=0x00ff00))
 		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb )
 		emb1 = (discord.Embed(title="Red Team:\n" + "\n".join(map(str, lastRedTeam)), colour=0xff0000))
