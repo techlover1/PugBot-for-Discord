@@ -25,6 +25,7 @@ mapprefix = config.mapprefix
 playerRoleID = config.playerRoleID
 poolRoleID = config.poolRoleID
 quotes = config.quotes
+readyupChannelID = config.readyupChannelID
 redteamChannelID = config.redteamChannelID
 requestChannelID = config.requestChannelID
 rconPW = config.rconPW
@@ -57,6 +58,11 @@ randomTeams = False
 selectionMode = False
 voteForMaps = True
 		
+# Constants 
+THREE_MINUTES_IN_SECONDS = 180
+TWO_MINUTES_IN_SECONDS = 120
+ONE_MINUTE_IN_SECONDS = 60
+
 # Setup an RCON connection 
 rcon = valve.rcon.RCON(server_address, rconPW)
 rcon.connect()
@@ -75,50 +81,167 @@ except IOError as error:
 	lastMap = []
 	lasttime = time.time()
 	
-# Send a rich embeded messages instead of a plain ones
-
-## channel ##
-async def send_emb_message_to_channel(colour, embstr, message):
-	emb = (discord.Embed(description=embstr, colour=colour))
-	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-	await client.send_message(message.channel, embed=emb )
+# run through the all the players in the pool and verify they are ready
+async def check_for_afk_players(msg, players, readyupChannelID):
+	ready_channel = discord.utils.get(msg.server.channels, id = readyupChannelID)
+	ready_users = ready_channel.voice_members
+	afk_players = []
 	
-## user ##	
-async def send_emb_message_to_user(colour, embstr, message):
-	emb = (discord.Embed(description=embstr, colour=colour))
-	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-	await client.send_message(message.author, embed=emb )
+	# only preform this check if the readyupChannelID is a valid voice channel
+	if(ready_channel is not None):
+		# check to verify if each player is in the ready-up channel
+		for p in players:
+			if(p not in ready_users):				
+				afk_players.append(p)	# add to missing players list
+	return afk_players
 
-# Cycle through a user's roles to determine if they have admin access
-# returns True if they do have access
-async def user_has_access(author):
-	if adminRoleID in [r.id for r in author.roles]: return True
-	return False
+async def check_for_map_nominations(mapPicks, msg, sizeOfMapPool):
+	if(len(mapPicks) < sizeOfMapPool):
+		# need to build the list of maps
+		mapStr = ""
+		for k in mapPicks:
+			mapStr = mapStr + str(mapPicks[k]) + " (" + k.mention + ")\n"
+		await send_emb_message_to_channel(0xff0000, "Players must nominate more maps before we can proceed\nCurrently Nominated Maps (" + str(len(mapPicks)) + "/" + str(sizeOfMapPool) + ")\n" + mapStr, msg)
+	while(len(mapPicks) < sizeOfMapPool):
+		async def needMapPicks(msg):						
+			# check function for advance filtering
+			async def check(msg):
+				return msg.content.startswith(cmdprefix + 'nominate')
+			# wait until someone nominates another map
+			await client.wait_for_message(check=check)
+		await needMapPicks(msg)
+			
+async def go_go_gadget_pickup(mapMode, mapPicks, msg, selectionMode, starter, pickupRunning, players, poolRoleID, readyupChannelID, voteForMaps):
+	afk_players = []
+	counter = 0
+	countdown = time.time()
+	elapsedtime = time.time() - countdown
+	td = timedelta(seconds=elapsedtime)
+	ready_channel = discord.utils.get(msg.server.channels, id = readyupChannelID)
+	role = discord.utils.get(msg.server.roles, id=poolRoleID)
+	
+	await send_emb_message_to_channel(0x00ff00, "The pickup is starting!!\n\n" + role.mention + " join the " + ready_channel.name + " to signify you are present and ready", msg)
+	# give the players up to two (2) minutes to ready-up
+	while(td.total_seconds() < TWO_MINUTES_IN_SECONDS):
+		# only check every 5 seconds
+		await asyncio.sleep(5)
+		# loop through the channel and check to see if everyone has joined it or not
+		afk_players = await check_for_afk_players(msg, players, readyupChannelID)
+		if(len(afk_players) > 0):
+			afkstr = '\n'.join([p.mention for p in afk_players])			
+			elapsedtime = time.time() - countdown
+			td = timedelta(seconds=elapsedtime)
+			# only message the channel every third iteration
+			if((counter % 3) == 0):
+				await send_emb_message_to_channel(0xff0000, "Missing players:\n\n" + afkstr, msg)
+			counter += 1
+		else:
+			# all players in list are idle in channel and ready
+			break
+	
+	# if afk_players has people in it, then those player(s) timed out
+	if(len(afk_players) > 0):		
+		for idleUser in afk_players:		
+			players.remove(idleUser)		# remove from players list
+			mapPicks.pop(idleUser, None)	# remove this players nomination if they had one
+			try:
+				await client.remove_roles(idleUser, role)
+			except Exception:
+				pass
+		await send_emb_message_to_channel(0xff0000, idleUser.mention + " has been removed from the pickup due to inactivity", msg)
+		await client.change_presence(game=discord.Game(name='Pickup (' + str(len(players)) + '/' + str(sizeOfGame) + ') ' + cmdprefix + 'add'))
+		return	False # break out if we remove a player
+	
+	inputobj = 0			# used to manipulate the objects from messages
+	mapMode = True			# allow nominations until we have a full maplist
+	randomTeams = True		# if game starter does not change, will pick teams randomly from players list
+	selectionMode = True	# keep people from changing the queue once the game has begun
+	shuffle(players) 		# shuffle the player pool
+	
+	# lists for team selection
+	caps = []
+	redTeam = []
+	blueTeam = []
+	
+	# Begin the pickup
+	await send_emb_message_to_channel(0x00ff00, "All players are confirmed ready!", msg)
+	
+	# Map Selection
+	await client.change_presence(game=discord.Game(name='Map Selection'))
+	
+	# do we have the right amount of map nominations
+	await check_for_map_nominations(mapPicks, msg, sizeOfMapPool)
+		
+	# vote for maps
+	chosenMap = await pick_map(lastMap, mapMode, msg, poolRoleID, sizeOfMapPool, voteForMaps)
+	
+	# loop until the game starter makes a decision
+	randomTeams = await pick_captains(msg, caps, players)
+	while(len(caps) < 2):
+		randomTeams = await pick_captains(msg, caps, players)
+	
+	# set up the initial teams
+	if(randomTeams):
+		for i in range(0, sizeOfTeams):
+			redTeam.append(players[i])
+			blueTeam.append(players[i+sizeOfTeams])
+	else:
+		redTeam = [caps[0]]
+		blueTeam = [caps[1]]
+		try:
+			players.remove(caps[0])
+		except IndexError as error:
+			pass
+		try:
+			players.remove(caps[1])
+		except IndexError as error:
+			pass
+		
+	# Begin the pickup
+	await send_emb_message_to_channel(0x00ff00, caps[0].mention + " vs " + caps[1].mention, msg)
+					
+	# Switch off picking until the teams are all full
+	await client.change_presence(game=discord.Game(name='Team Selection'))
+	
+	# if teams are not already full:
+	if(len(redTeam) < sizeOfTeams and len(blueTeam) < sizeOfTeams):
+		# Blue captain picks first
+		await blue_team_picks(blueTeam, redTeam, caps, players, msg)
+		await red_team_picks(blueTeam, redTeam, caps, players, msg)
+		while(len(redTeam) < sizeOfTeams and len(blueTeam) < sizeOfTeams):
+			# Red  captain gets two picks first round so start with red
+			await red_team_picks(blueTeam, redTeam, caps, players, msg)
+			await blue_team_picks(blueTeam, redTeam, caps, players, msg)
 
-# Check to make sure all added players are still present
-# returns: 	True is someone is missing
-# 			False if all members confirm ready
-async def someone_is_afk(players, maps, message):
-	# message the channel so the users know what is going on
-	await send_emb_message_to_channel(0x00ff00, "The pickup is full!! All players must verify they are still here. This will take no more than 10 minutes, but should just be a few. Lookout for my PM and reply ASAP!" , message)
-	await client.change_presence(game=discord.Game(name='Check for AFK Players'))
-	# for every player in the queue
-	for p in players:
-		# need to verify they are all still here before starting things
-		emb = (discord.Embed(description="AFK CHECK - The pickup is about to begin. You must reply to this message within the next 2 minutes or you will be removed from the pickup due to inactivity.", colour=0xff0000))
-		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-		await client.send_message(p, embed=emb )
-		# wait two minutes (120s) for a reply
-		inputobj = await client.wait_for_message(timeout=120, author=p)
-		# wait_for_message returns 'None' if asyncio.TimeoutError thrown
-		if(inputobj == None): 
-			removed = True
-			players.remove(p)		# remove from players list
-			mapPicks.pop(p, None)		# remove this players nomination if they had one
-			await send_emb_message_to_channel(0xff0000, p.mention + " has been removed from the pickup due to inactivity." , message)
-			return True
-		await send_emb_message_to_channel(0x00ff00, p.mention + " has checked in." , message)
-	return False
+	# pm users and message server with game information
+	await send_information(blueTeam, redTeam, chosenMap, msg, serverID, serverPW)
+	
+	# change the map in the server to the chosen map
+	try:
+		rcon.execute('changelevel ' + chosenMap)
+	except Exception:
+		pass
+		
+	# move the players to their respective voice channels
+	for p in redTeam:
+		try:
+			await client.move_member(p, client.get_channel(redteamChannelID))
+		except(InvalidArgument, HTTPException, Forbidden):
+			continue				
+	for p in blueTeam:
+		try:
+			await client.move_member(p, client.get_channel(blueteamChannelID))
+		except(InvalidArgument, HTTPException, Forbidden):
+			continue
+	
+	# Save all the information for !last
+	await save_last_game_info(blueTeam, redTeam, lastBlueTeam, lastRedTeam, chosenMap)
+	
+	# schedule a background task to remove the players from the pool
+	# this is so we can still notify them all for a few minutes
+	client.loop.create_task(remove_everyone_from_pool_role(msg, redTeam, blueTeam, poolRoleID))
+		
+	return True
 
 # Check to see if the map nominated is an alias
 async def mapname_is_alias(msg, mpname):
@@ -134,16 +257,270 @@ async def mapname_is_alias(msg, mpname):
 		if(mstr.startswith(mpname)): 
 			return m
 	return "INVALID"
+		
+# wait until the game starter makes a decision				
+async def pick_captains(msg, caps, players):
+	# set presence 
+	await client.change_presence(game=discord.Game(name='Selecting Captains'))
 	
-async def remove_from_pool(msg, redTeam, blueTeam, poolRoleID):
+	# human readable Usage message to channel
+	emb = (discord.Embed(description=starter[0].mention + " please select one of the options below", colour=0x00ff00))
+	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+	emb.add_field(name=cmdprefix + 'captains @Player1 @Player2', value='to manually select the captains', inline=False)
+	emb.add_field(name=cmdprefix + 'shuffle', value='to randomize the captains', inline=False)
+	emb.add_field(name=cmdprefix + 'random', value='to randomize the teams', inline=False)
+	await client.send_message(msg.channel, embed=emb )
+	
+	# check function for advance filtering
+	def check(msg):
+		if( msg.content.startswith(cmdprefix + 'captains')): return True
+		elif( msg.content.startswith(cmdprefix + 'shuffle')): return True
+		elif( msg.content.startswith(cmdprefix + 'random')): return True
+		return False
+		
+	# wait up to two (2) minutes for the game starter to make a decision
+	inputobj = await client.wait_for_message(timeout=120, author=msg.server.get_member(starter[0].id), check=check)
+	
+	# wait_for_message returns 'None' if asyncio.TimeoutError thrown
+	if(inputobj != None): 
+		# switch on choice
+		if(inputobj.content.startswith(cmdprefix + "captains")):
+			# catch any errors if they do not mention two players
+			try:
+				# check for duplicate user
+				if(inputobj.mentions[0] == inputobj.mentions[1]):
+					return False	
+				else:
+					# make sure both captains are added to the pickup
+					if((inputobj.mentions[0] in players) and (inputobj.mentions[1] in players)):
+						caps.append(inputobj.mentions[0])
+						caps.append(inputobj.mentions[1])
+						return False	
+					else:
+						return False
+			except(IndexError):
+				return False
+		elif(inputobj.content.startswith(cmdprefix + "shuffle")):
+			caps.append(players[0])
+			caps.append(players[1])
+			return False
+		elif(inputobj.content.startswith(cmdprefix + "random")):
+			caps.append(players[0])
+			caps.append(players[1])
+			return True
+		else:
+			return False	# not a valid option
+	else:		
+		return False	# timeout
+
+async def pick_map(lastMap, mapMode, msg, poolRoleID, sizeOfMapPool, voteForMaps):
+# vote for maps or random
+	if(voteForMaps):
+		votelist = {}
+		# initialize 
+		votetotals = []
+		[votetotals.append(0) for x in range(sizeOfMapPool)]
+		positions = []
+		countdown = time.time()
+		elapsedtime = time.time() - countdown
+		td = timedelta(seconds=elapsedtime)
+		position = 0
+		topvote = -1
+		duplicateFnd = False
+		role = discord.utils.get(msg.server.roles, id=poolRoleID)
+		await send_emb_message_to_channel(0x00ff00, "Map voting has started\n\n" + role.mention + " you have " + str(ONE_MINUTE_IN_SECONDS) + " seconds to vote for a map\n\nreply with a number between 1 and " + str(sizeOfMapPool) + " to cast your vote", msg)
+		while(td.total_seconds() < ONE_MINUTE_IN_SECONDS):
+			async def gatherVotes(msg):						
+				# check function for advance filtering
+				def check(msg):
+					# only accept votes from members in the pool
+					# update the vote if they change it
+					if(poolRoleID in [r.id for r in msg.author.roles]):
+						for x in range(1,sizeOfMapPool+1):
+							if(msg.content == str(x)):
+								votelist.update({msg.author.name:x})
+						return True
+				# listen for votes, wait no more than 60 seconds
+				await client.wait_for_message(timeout=60, check=check)
+			await gatherVotes(msg)
+			elapsedtime = time.time() - countdown
+			td = timedelta(seconds=elapsedtime)
+			
+		# vote time has expired
+		await send_emb_message_to_channel(0xff0000, "Map voting has finished", msg)
+		
+		# if users voted
+		if(len(votetotals) > 0):
+			# tally up the votes
+			for k,v in votelist.items():
+				print(str(k) + " : " + str(v))
+				votetotals[v-1] += 1 
+				
+			# find the max number and it's position
+			for pos, vote in enumerate(votetotals):
+				if(topvote < vote): 
+					topvote = vote
+					position = pos
+					
+			# now that we have the max and it's position
+			# loop one final time to gather positions of duplicates
+			for pos, vote in enumerate(votetotals):
+				if(topvote != vote): continue # keep looping if they are different
+				# topvote == vote therefor we have a tie
+				if(not duplicateFnd): duplicateFnd = True
+				positions.append(pos)
+		else:
+			duplicateFnd = True
+			positions = [0,1,2]
+			
+		# randomly pick from list if we have a tie
+		if(duplicateFnd):		
+			position = choice(positions)
+		mappa = list(mapPicks.values())[position]	
+	else: # random map mode
+		selector, mappa = choice(list(mapPicks.items()))				
+	# tell the users what map won
+	emb = (discord.Embed(title="The map has been selected", colour=0x00ff00))
+	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+	emb.add_field(name='Map', value=str(mappa))										# Display the map information
+	await client.send_message(msg.channel, embed=emb )
+	
+	# reset for next pickup
+	lastMap = mappa
+	mapMode = False
+	return mappa
+	
+# BLUE TEAM PICKS
+async def blue_team_picks(blueTeam, redTeam, caps, players, msg):
+	plyrStr = '\n'.join([p.mention for p in players])
+	await send_emb_message_to_channel(0x00ff00, caps[1].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
+
+	# check for a pick and catch it if they don't mention an available player
+	while True:
+		try:
+			inputobj = await client.wait_for_message(author=msg.server.get_member(caps[1].id))
+			picked = inputobj.mentions[0]
+		except(IndexError):
+			continue
+		break
+
+	# If the player is in players and they are not already picked, add to the team
+	if(picked in players):
+		if(picked not in redTeam and picked not in blueTeam):
+			blueTeam.append(picked)
+			players.remove(picked)
+			await send_emb_message_to_channel(0x0000ff, picked.mention + " has been added to the Blue Team", msg)
+		else:
+			await send_emb_message_to_channel(0xff0000, picked.mention + " is already on a team", msg)
+			await blue_team_picks(blueTeam, redTeam, caps, players, msg)
+	else:
+		await send_emb_message_to_channel(0xff0000, picked.mention + " is not in this pickup", msg)
+		await blue_team_picks(blueTeam, redTeam, caps, players, msg)
+		
+# RED TEAM PICKS
+async def red_team_picks(blueTeam, redTeam, caps, players, msg):
+	plyrStr = '\n'.join([p.mention for p in players])
+	await send_emb_message_to_channel(0x00ff00, caps[0].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
+
+	# check for a pick and catch it if they don't mention an available player
+	while True:
+		try:
+			inputobj = await client.wait_for_message(author=msg.server.get_member(caps[0].id))
+			picked = inputobj.mentions[0]
+		except(IndexError):
+			continue
+		break
+
+	# If the player is in players and they are not already picked, add to the team
+	if(picked in players):
+		if(picked not in redTeam and picked not in blueTeam):
+			redTeam.append(picked)
+			players.remove(picked)
+			# TODO (2): make this a distinct function that includes the team logos
+			await send_emb_message_to_channel(0xff0000, picked.mention + " has been added to the Red Team", msg)
+		else:
+			await send_emb_message_to_channel(0xff0000, picked.mention + " is already on a team", msg)
+			await red_team_picks(blueTeam, redTeam, caps, players, msg)
+	else:
+		await send_emb_message_to_channel(0xff0000, picked.mention + " is not in this pickup", msg)
+		await red_team_picks(blueTeam, redTeam, caps, players, msg)
+
+# remove the poolRoleID from all the players from the last pickup	
+async def remove_everyone_from_pool_role(msg, redTeam, blueTeam, poolRoleID):
+	# wait five minutes 
 	await asyncio.sleep(300)
+	# get the correct role
 	role = discord.utils.get(msg.server.roles, id=poolRoleID)
+	# remove from all users in both teams
 	for p in redTeam:
 		await client.remove_roles(p, role)
 	for p in blueTeam:
 		await client.remove_roles(p, role)
+	# reset presence to nothing
+	await client.change_presence(game=discord.Game(name=''))
 		
+async def save_last_game_info(blueTeam, redTeam, lastBlueTeam, lastRedTeam, lastmap):
+	lastRedTeam = []
+	lastBlueTeam = []
+	for p in redTeam:
+		lastRedTeam.append(p.name)
+	for p in blueTeam:
+		lastBlueTeam.append(p.name)
+	lasttime = time.time()
+	
+	# save this data to a file so we can access it later
+	with open('lastgameinfo', 'w') as outfile:
+		outfile.write(",".join(map(str, lastRedTeam)) + "\n")
+		outfile.write(",".join(map(str, lastBlueTeam)) + "\n")
+		outfile.write(str(lastmap) + "\n")
+		outfile.write(str(lasttime))
 		
+### Send a rich embeded messages instead of a plain ones
+### to an entire channel
+async def send_emb_message_to_channel(colour, embstr, message):
+	emb = (discord.Embed(description=embstr, colour=colour))
+	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+	await client.send_message(message.channel, embed=emb )
+	
+### Send a rich embeded messages instead of a plain ones
+### to an individual user 	
+async def send_emb_message_to_user(colour, embstr, message):
+	emb = (discord.Embed(description=embstr, colour=colour))
+	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+	await client.send_message(message.author, embed=emb )
+
+# send the server information to all of the players in a direct message
+# send pickup game information to the channel 
+async def send_information(blueTeam, redTeam, mappa, msg, serverID, serverPW):
+	# set bot presence
+	await client.change_presence(game=discord.Game(name='GLHF'))
+	
+	# send each user the server and password information
+	redTeamMention = []
+	blueTeamMention = []				
+	emb = (discord.Embed(title="connect " + serverID + " " + serverPW, colour=0x00ff00))
+	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+	for p in redTeam:
+		await client.send_message(p, embed=emb )
+		redTeamMention.append(p.mention)	# so we can mention all the members of the red team
+	for p in blueTeam:
+		await client.send_message(p, embed=emb )
+		blueTeamMention.append(p.mention)	# so we can mention all the members of the blue team
+
+	# Display the game information
+	emb = (discord.Embed(title="The teams and map have been selected", colour=0x00ff00))
+	emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
+	emb.add_field(name='Red Team', value="\n".join(map(str, redTeamMention)))		# Red Team information
+	emb.add_field(name='Blue Team', value="\n".join(map(str, blueTeamMention)))		# Blue Team information				
+	emb.add_field(name='Map', value=str(mappa))										# Display the map information
+	await client.send_message(msg.channel, embed=emb )	
+	
+# Cycle through a user's roles to determine if they have admin access
+# returns True if they do have access
+async def user_has_access(author):
+	if adminRoleID in [r.id for r in author.roles]: return True
+	return False
+	
 # Every time we receive a message
 @client.event
 async def on_message(msg):
@@ -206,290 +583,18 @@ async def on_message(msg):
 				await client.change_presence(game=discord.Game(name='Pickup (' + str(len(players)) + '/' + str(sizeOfGame) + ') ' + cmdprefix + 'add'))
 			
 			# each time someone adds, we need to check to see if the pickup is full
-			if(len(players) == sizeOfGame):				
-				# confirm everyone is still here if it has been over an hour
-				elapsedtime = time.time() - starttime
-				td = timedelta(seconds=elapsedtime)
-				if(td.total_seconds() > 3600):
-					if(await someone_is_afk(players, maps, msg)): return			
-				
-				inputobj = 0			# used to manipulate the objects from messages
-				mapMode = True			# allow nominations until we have a full maplist
-				selectionMode = True	# keep people from changing the queue once the game has begun
-				shuffle(players) 		# shuffle the player pool
-				caps = []
-				redTeam = []
-				blueTeam = []
-				
-				# Map Selection
-				await client.change_presence(game=discord.Game(name='Map Selection'))
-				
-				# do we have the right amount of map nominations
-				if(len(mapPicks) < sizeOfMapPool):
-					# need to build the list of maps
-					mapStr = ""
-					for k in mapPicks:
-						mapStr = mapStr + str(mapPicks[k]) + " (" + k.mention + ")\n"
-					await send_emb_message_to_channel(0xff0000, "Players must nominate more maps before we can proceed\nCurrently Nominated Maps (" + str(len(mapPicks)) + "/" + str(sizeOfMapPool) + ")\n" + mapStr, msg)
-				while(len(mapPicks) < sizeOfMapPool):
-					async def needMapPicks(msg):						
-						# check function for advance filtering
-						async def check(msg):
-							return msg.content.startswith(cmdprefix + 'nominate')
-						# wait until someone nominates another map
-						await client.wait_for_message(check=check)
-					await needMapPicks(msg)
-												
-				# vote for maps or random
-				if(voteForMaps):
-					votelist = {}
-					votetotals = []
-					[votetotals.append(0) for x in range(sizeOfMapPool)]
-					positions = []
-					countdown = time.time()
-					elapsedtime = time.time() - countdown
-					td = timedelta(seconds=elapsedtime)
-					position = 0
-					topvote = -1
-					duplicateFnd = False
-					role = discord.utils.get(msg.server.roles, id=poolRoleID)
-					await send_emb_message_to_channel(0x00ff00, "Map voting has started\n\n" + role.mention + " you have 60 seconds to vote for a map\n\nreply with a number between 1 and " + str(sizeOfMapPool) + " to cast your vote", msg)
-					while(td.total_seconds() < 60):
-						async def gatherVotes(msg):						
-							# check function for advance filtering
-							def check(msg):
-								# only accept votes from members in the pool
-								# update the vote if they change it
-								if(poolRoleID in [r.id for r in msg.author.roles]):
-									for x in range(1,sizeOfMapPool+1):
-										if(msg.content.startswith(str(x))):
-											votelist.update({msg.author.name:x})
-									return True
-							# listen for votes, wait no more than 60 seconds
-							await client.wait_for_message(timeout=60, check=check)
-						await gatherVotes(msg)
-						elapsedtime = time.time() - countdown
-						td = timedelta(seconds=elapsedtime)
-					# vote time has expired
-					await send_emb_message_to_channel(0xff0000, "Map voting has finished", msg)
-					for k,v in votelist.items():
-						votetotals[v-1] += 1 
-					# find the max number and it's position
-					for pos, vote in enumerate(votetotals):
-						if(topvote < vote): 
-							topvote = vote
-							position = pos
-					# now that we have the max and it's position
-					# loop one final time to gather positions of duplicates
-					for pos, vote in enumerate(votetotals):
-						if(topvote != vote): continue # keep looping if they are different
-						# topvote == vote therefor we have a tie
-						if(not duplicateFnd): duplicateFnd = True
-						positions.append(pos)
-					# randomly pick from list if we have a tie
-					if(duplicateFnd):		
-						position = choice(positions)
-					mappa = list(mapPicks.values())[position]	
-				else: # random map mode
-					selector, mappa = choice(list(mapPicks.items()))				
-				# tell the users what map won
-				emb = (discord.Embed(title="The map has been selected", colour=0x00ff00))
-				emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-				emb.add_field(name='Map', value=str(mappa))										# Display the map information
-				await client.send_message(msg.channel, embed=emb )
-				lastMap = mappa
-				chosenMap = mappa
-				mapMode = False
-				
-				# captains should be chosen by an admin
-				emb = (discord.Embed(description="The pickup is full, the map has been selected, and all members are present.\n\n" + starter[0].mention + " please select one of the options below", colour=0x00ff00))
-				emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-				emb.add_field(name=cmdprefix + 'captains @Player1 @Player2', value='to manually select the captains', inline=False)
-				emb.add_field(name=cmdprefix + 'shuffle', value='to randomize the captains', inline=False)
-				emb.add_field(name=cmdprefix + 'random', value='to randomize the teams', inline=False)
-				await client.send_message(msg.channel, embed=emb )
-				await client.change_presence(game=discord.Game(name='Selecting Captains'))
-
-				# wait until the game starter makes a decision				
-				async def pickCaptains(msg, caps, players):
-					inputobj = await client.wait_for_message(author=msg.server.get_member(starter[0].id))
-					# switch on choice
-					if(inputobj.content.startswith(cmdprefix + "captains")):
-						# catch any errors if they do not mention two players
-						try:
-							# check for duplicate user
-							if(inputobj.mentions[0] == inputobj.mentions[1]):
-								await client.send_message(msg.channel, embed=emb )
-								return False
-							else:
-								caps.append(inputobj.mentions[0])
-								caps.append(inputobj.mentions[1])
-								return False
-						except(IndexError):
-							await client.send_message(msg.channel, embed=emb )
-							return False
-					elif(inputobj.content.startswith(cmdprefix + "shuffle")):
-						caps.append(players[0])
-						caps.append(players[1])
-						return False
-					elif(inputobj.content.startswith(cmdprefix + "random")):
-						caps.append(players[0])
-						caps.append(players[1])
-						return True
-					else:
-						await client.send_message(msg.channel, embed=emb )
-				while(len(caps) < 2):
-					randomTeams = await pickCaptains(msg, caps, players)
-				
-				# set up the initial teams
-				shuffle(caps)	# shuffle the captains so the first guy doesn't always pick first
-				if(randomTeams):
-					for i in range(0, sizeOfTeams):
-						redTeam.append(players[i])
-						blueTeam.append(players[i+sizeOfTeams])
-				else:
-					redTeam = [caps[0]]
-					blueTeam = [caps[1]]
-					players.remove(caps[0])
-					players.remove(caps[1])
-				
-				# Begin the pickup
-				await send_emb_message_to_channel(0x00ff00, "The Pickup is Beginning!\n" + caps[0].mention + " vs " + caps[1].mention, msg)
-								
-				# Switch off picking until the teams are all full
-				await client.change_presence(game=discord.Game(name='Team Selection'))
-				while(len(redTeam) < sizeOfTeams and len(blueTeam) < sizeOfTeams):
-					# RED TEAM PICKS
-					async def redTeamPicks(msg):
-						plyrStr = '\n'.join([p.mention for p in players])
-						await send_emb_message_to_channel(0x00ff00, caps[0].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
-					
-						# check for a pick and catch it if they don't mention an available player
-						while True:
-							try:
-								inputobj = await client.wait_for_message(author=msg.server.get_member(caps[0].id))
-								picked = inputobj.mentions[0]
-							except(IndexError):
-								continue
-							break
-
-						# If the player is in players and they are not already picked, add to the team
-						if(picked in players):
-							if(picked not in redTeam and picked not in blueTeam):
-								redTeam.append(picked)
-								players.remove(picked)
-								await send_emb_message_to_channel(0x00ff00, picked.mention + " has been added to the Red Team", msg)
-							else:
-								await send_emb_message_to_channel(0xff0000, picked.mention + " is already on a team", msg)
-								await redTeamPicks(msg)
-						else:
-							await send_emb_message_to_channel(0xff0000, picked.mention + " is not in this pickup", msg)
-							await redTeamPicks(msg)
-				
-						
-					# BLUE TEAM PICKS
-					async def blueTeamPicks(msg):
-						plyrStr = '\n'.join([p.mention for p in players])
-						await send_emb_message_to_channel(0x00ff00, caps[1].mention + " type @player to pick. Available players are:\n\n" + plyrStr, msg)
-					
-						# check for a pick and catch it if they don't mention an available player
-						while True:
-							try:
-								inputobj = await client.wait_for_message(author=msg.server.get_member(caps[1].id))
-								picked = inputobj.mentions[0]
-							except(IndexError):
-								continue
-							break
-
-						# If the player is in players and they are not already picked, add to the team
-						if(picked in players):
-							if(picked not in redTeam and picked not in blueTeam):
-								blueTeam.append(picked)
-								players.remove(picked)
-								await send_emb_message_to_channel(0x00ff00, picked.mention + " has been added to the Blue Team", msg)
-							else:
-								await send_emb_message_to_channel(0xff0000, picked.mention + " is already on a team", msg)
-								await blueTeamPicks(msg)
-						else:
-							await send_emb_message_to_channel(0xff0000, picked.mention + " is not in this pickup", msg)
-							await blueTeamPicks(msg)
-					await redTeamPicks(msg)
-					await blueTeamPicks(msg)
-			
-				# send the server information to all of the players in a direct message
-				# while looping, set up a way to mention all members
-				redTeamMention = []
-				blueTeamMention = []				
-				emb = (discord.Embed(title="connect " + serverID + " " + serverPW, colour=0x00ff00))
-				emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-				for p in redTeam:
-					await client.send_message(p, embed=emb )
-					redTeamMention.append(p.mention)	# so we can mention all the members of the red team
-				for p in blueTeam:
-					await client.send_message(p, embed=emb )
-					blueTeamMention.append(p.mention)	# so we can mention all the members of the blue team
-				
-				# Display the game information
-				emb = (discord.Embed(title="The teams and map have been selected", colour=0x00ff00))
-				emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
-				emb.add_field(name='Red Team', value="\n".join(map(str, redTeamMention)))		# Red Team information
-				emb.add_field(name='Blue Team', value="\n".join(map(str, blueTeamMention)))		# Blue Team information				
-				emb.add_field(name='Map', value=str(mappa))										# Display the map information
-				await client.send_message(msg.channel, embed=emb )
-				await client.change_presence(game=discord.Game(name='GLHF'))
-				
-				# change the map in the server to the chosen map
-				try:
-					rcon.execute('changelevel ' + mappa)
-				except Exception:
-					pass
-					
-				# move the players to their respective voice channels
-				for p in redTeam:
-					try:
-						await client.move_member(p, client.get_channel(redteamChannelID))
-					except(InvalidArgument, HTTPException, Forbidden):
-						continue				
-				for p in blueTeam:
-					try:
-						await client.move_member(p, client.get_channel(blueteamChannelID))
-					except(InvalidArgument, HTTPException, Forbidden):
-						continue
-				
-				# Save all the information for !last
-				lastRedTeam = []
-				lastBlueTeam = []
-				for p in redTeam:
-					lastRedTeam.append(p.name)
-				for p in blueTeam:
-					lastBlueTeam.append(p.name)
-				lasttime = time.time()
-				
-				# save this data to a file so we can access it later
-				with open('lastgameinfo', 'w') as outfile:
-					outfile.write(",".join(map(str, lastRedTeam)) + "\n")
-					outfile.write(",".join(map(str, lastBlueTeam)) + "\n")
-					outfile.write(str(mappa) + "\n")
-					outfile.write(str(lasttime))
-				
-				# schedule a background task to remove the players from the pool
-				# this is so we can still notify them all for a few minutes
-				client.loop.create_task(remove_from_pool(msg, redTeam, blueTeam, poolRoleID))
-					
-				# Reset so we can play another one
-				mapPicks = {}
-				captains = []				
-				players = []
-				starter = []
-				redTeam = []
-				blueTeam = []
-				redTeammention = []
-				blueTeammention = []
-				mapMode = True
-				selectionMode = False
-				pickupRunning = False
-				voteForMaps = True
-				await client.change_presence(game=discord.Game(name='GLHF'))
+			if(len(players) == sizeOfGame):			
+				# start the pickup
+				reset = await go_go_gadget_pickup(mapMode, mapPicks, msg, selectionMode, starter, pickupRunning, players, poolRoleID, readyupChannelID, voteForMaps)
+				if(reset):
+					# Reset so we can play another one
+					mapPicks = {}		
+					players = []
+					starter = []
+					mapMode = True
+					selectionMode = False
+					pickupRunning = False
+					voteForMaps = True
 		else:
 			await send_emb_message_to_channel(0xff0000, msg.author.mention + " you cannot use this command, there is no pickup running right now. Use " + adminRoleMention + " to request an admin start one for you", msg)
 			
@@ -577,7 +682,7 @@ async def on_message(msg):
 		td = timedelta(seconds=elapsedtime)
 		td = td - timedelta(microseconds=td.microseconds)
 		# get the last map that was played on
-		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lastMap[0], colour=0x00ff00))
+		emb = (discord.Embed(title="Last Pickup was " + str(td) + " ago on " + lastMap, colour=0x00ff00))
 		emb.set_author(name=client.user.name, icon_url=client.user.avatar_url)
 		await client.send_message(msg.channel, embed=emb )
 		emb1 = (discord.Embed(title="Red Team:\n" + "\n".join(map(str, lastRedTeam)), colour=0xff0000))
@@ -614,8 +719,8 @@ async def on_message(msg):
 	# Maplist - Provides the msg.author with a list of all the maps that are available for nomination via direct message
 	if (msg.content.startswith(cmdprefix + "maplist")): await send_emb_message_to_user(0x00ff00, "Currently, you may nominate any of the following maps:\n" + "\n".join(map(str, maps)), msg)
 			
-	# Nominate (but not nominated) - Nominate the specified map
-	if(msg.content.startswith(cmdprefix + "nominate") and not msg.content.startswith(cmdprefix + "nominated")):
+	# Nominate - Nominate the specified map
+	if(msg.content.startswith(cmdprefix + "nominate ")):
 		# there must be an active pickup
 		if(pickupRunning):
 			# only allow if pickup has not already begun
@@ -632,7 +737,14 @@ async def on_message(msg):
 						if(atom == "TOOSHORT"): return
 						elif(atom == "INVALID"): atom = message[1]
 						# only allow maps that exist on server and only put in list once
-						if(atom in maps and atom not in mapPicks):
+						if(atom in maps):
+							# TODO (1): this check is not working correctly
+							for mp in mapPicks:
+								if(atom == str(mp)):
+									print("hi")
+									await send_emb_message_to_channel(0xff0000, msg.author.mention + " that map has already been nominated. Please make another selection", msg)
+									return # break out if duplicate nomination
+									
 							# only allow a certain number of maps
 							if(len(mapPicks) < sizeOfMapPool or msg.author in mapPicks):
 								# users may only nominate one map
@@ -648,7 +760,7 @@ async def on_message(msg):
 								emb.add_field(name='Current Maps', value=mapStr, inline=False)
 								await client.send_message(msg.channel, embed=emb )							
 						else:
-							await send_emb_message_to_channel(0xff0000, msg.author.mention + " that map is not in my !maplist or has already been nominated. Please make another selection", msg)
+							await send_emb_message_to_channel(0xff0000, msg.author.mention + " that map is not in my !maplist. Please make another selection", msg)
 							await send_emb_message_to_user(0x00ff00, "Currently, you may nominate any of the following maps:\n" + "\n".join(map(str, maps)), msg)
 					else:
 						await send_emb_message_to_user(0xff0000, msg.author.mention + " you must provide a mapname. " + cmdprefix + "nominate <mapname>", msg)
