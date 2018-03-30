@@ -9,28 +9,28 @@ cmdprefix = '!'
 token = 'PLACE TOKEN HERE'
 
 # Default sizes
-sizeOfTeams 			= 4						# number of players per team
-sizeOfGame 				= 8						# sizeOfTeams * 2
-sizeOfMapPool 			= 3						# how many maps to nominate
-IDLE_TIME_IN_SECONDS 	= 180					# how long to wait for replies after a pickup has begun
+sizeOfTeams = 4						    # number of players per team
+sizeOfGame = 8						    # sizeOfTeams * 2
+sizeOfMapPool = 3					  	# how many maps to nominate
+IDLE_TIME_IN_SECONDS = 180		# how long to wait for replies after a pickup has begun
 
 # Discord Server Information
-adminRoleMention 		= '@PUG Admin'				# string literal of the role users can ping to request a pickup
-adminRoleID 			= '123456789987654321'		# ID of the role the bot uses to check for admin access
-playerRoleID 			= '123456789987654321'		# ID of the role users need to access the pickup channel 
-poolRoleID 				= '123456789987654321'		# ID of the role users are moved into once the pickup begins
-redteamChannelID 		= '123456789987654321'		# ID of the channel to move the Red Team's Players into once a pickup begins
-blueteamChannelID 		= '123456789987654321'		# ID of the channel to move the Blue Team's Players into once a pickup begins
-readyupChannelID 		= '123456789987654321'		# ID of the channel users must move into to signify they are ready for the pickup
-requestChannelID 		= '123456789987654321' 		# ID of the channel where users can request access to the pickup channel
-singleChannelID 		= '123456789987654321' 		# ID of the channel the bot will listen to for pickup commands
-discordServerID 		= '123456789987654321'		# ID of the discord server 
+adminRoleMention = '@PUG Admin'				    # string literal of the role users can ping to request a pickup
+adminRoleID = '123456789987654321'		    # ID of the role the bot uses to check for admin access
+playerRoleID = '123456789987654321'		    # ID of the role users need to access the pickup channel 
+poolRoleID = '123456789987654321'		      # ID of the role users are moved into once the pickup begins
+redteamChannelID = '123456789987654321'		# ID of the channel to move the Red Team's Players into once a pickup begins
+blueteamChannelID = '123456789987654321'	# ID of the channel to move the Blue Team's Players into once a pickup begins
+readyupChannelID = '123456789987654321'		# ID of the channel users must move into to signify they are ready for the pickup
+requestChannelID = '123456789987654321' 	# ID of the channel where users can request access to the pickup channel
+singleChannelID = '123456789987654321' 		# ID of the channel the bot will listen to for pickup commands
+discordServerID = '123456789987654321'		# ID of the discord server 
 
 # Game Server Information
-server_address 			= ("255.255.255.001", 27015)	
-rconPW 					= 'RCON PASSWORD HERE'
-serverID 				= '255.255.255.001:27015'
-serverPW 				= 'SEVER PASSWORD HERE'
+server_address = ("255.255.255.001", 27015)	
+rconPW = 'RCON PASSWORD HERE'
+serverID = '255.255.255.001:27015'
+serverPW = 'SEVER PASSWORD HERE'
 
 # A list of all of the acceptable maps in the pickup pool
 # this list must exactly mimic the server's maplist
