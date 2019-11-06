@@ -2,3 +2,7 @@ config.py
 *.pyc
 __pycache__
 test*.py
+.idea/
+requirements.txt
+venv/
+
