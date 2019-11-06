@@ -79,7 +79,9 @@ async def on_message(msg):
                     # catches the exception if they send a message that doesn't contain a mention
                     while True:
                         try:
-                            inputobj = await client.wait_for_message(author=msg.server.get_member(captains[0].id))
+                            def pred(m):
+                                return m.author == msg.server.get_member(captains[0].id)
+                            inputobj = await client.wait_for('message', check=pred)
                             team1add = inputobj.mentions[0]
                         except(IndexError):
                             continue
@@ -113,7 +115,9 @@ async def on_message(msg):
 
                     while True:
                         try:
-                            inputobj = await client.wait_for_message(author=msg.server.get_member(captains[1].id))
+                            def pred(m):
+                                return m.author == msg.server.get_member(captains[1].id)
+                            inputobj = await client.wait_for('message', check=pred)
                             team2add = inputobj.mentions[0]
                         except(IndexError):
                             continue
