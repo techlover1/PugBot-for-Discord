@@ -3,6 +3,5 @@ config.py
 __pycache__
 test*.py
 .idea/
-requirements.txt
 venv/
 
